@@ -123,7 +123,24 @@ godot --version       # → 4.6.2.stable.official.71f334935
 
 If the direct link works for you, drop the `gh-proxy.com/` prefix.
 
-### 3. Python
+### 3. One-shot bootstrap (recommended)
+
+From the repo root, as a user with `sudo`:
+
+```bash
+./scripts/setup_local.sh
+```
+
+The script is idempotent. It installs the packages above, pins Godot 4.6.2 to
+`/opt/godot`, pins 1Game **1.21.0** (`1game` / `1gameplay` / `@1game/engine-bundle`)
+to `/opt/1game`, creates `.venv` with `uv`, installs this repo, and writes a
+`.env` from `.env.example` if missing (judge defaults to `stub` so Harbor
+smoke does not require API keys). Re-running leaves an existing `.env` alone.
+Node 20+ is required for 1Game (nvm Node 22 is used when present). After
+`1game init && pnpm install`, run `1game-pnpm-natives` (or `pnpm approve-builds --all && pnpm rebuild`)
+so `better-sqlite3` is built; otherwise prefer `/usr/local/bin/1gameplay`.
+
+### 4. Python (manual)
 
 ```bash
 git clone <this-repo> game-bench && cd game-bench
@@ -132,7 +149,7 @@ source .venv/bin/activate
 uv pip install -e .          # add --index-url https://pypi.tuna.tsinghua.edu.cn/simple if needed
 ```
 
-### 4. Local config
+### 5. Local config (manual)
 
 ```bash
 cp .env.example .env         # fill in API keys / paths if defaults aren't right
@@ -141,7 +158,7 @@ cp .env.example .env         # fill in API keys / paths if defaults aren't right
 `.env` holds judge API keys (`OPENAI_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, …),
 the path to the Godot binary, and any path overrides. All scripts under `scripts/` source it automatically.
 
-### 5. Asset libraries (optional but expected)
+### 6. Asset libraries (optional but expected)
 
 Tasks share two CC0 / permissive 2D asset pools, mounted read-only into each trial:
 
@@ -185,7 +202,7 @@ They source `.env`, pin the local agent implementation, forward the required API
 Claude Code / Codex-based wrappers require `--ak reasoning_effort=<low|medium|high>`.
 The Kimi wrapper passes `--ak thinking=true` by default.
 
-Job artifacts land under `$GAMECRAFT_BENCH_JOBS_ROOT` (default `../gamecraft-bench-jobs/<timestamp>/<task>__<id>/`).
+Job artifacts land under `$GAMECRAFT_BENCH_JOBS_ROOT` (default `../gamecraft-bench-jobs/<timestamp>/<task>__<id>/`). If that sibling path is not writable (typical for Cloud Agent `/workspace`), `scripts/run.sh` uses `$HOME/gamecraft-bench-jobs` instead. Do not put jobs under `/workspace` (trial overlay) or `/tmp` (private `/tmp` bind in the namespace), or verifier log symlinks will break.
 
 ## Dashboard
 
