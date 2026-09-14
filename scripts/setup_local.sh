@@ -57,12 +57,33 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 
 echo "==> Python venv + gamecraft-bench"
-if [ ! -d .venv ]; then
+# Cloud Agent checkouts live at /workspace, which LocalSubprocessEnvironment
+# overlays with the trial sandbox. Keep the venv *outside* that path and
+# install the package non-editable so imports work inside the namespace.
+if [ "$REPO_ROOT" = "/workspace" ]; then
+    VENV_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/gamecraft-bench/venv"
+    mkdir -p "$(dirname "$VENV_DIR")"
+    if [ -d .venv ] && [ ! -L .venv ]; then
+        if [ ! -d "$VENV_DIR" ]; then
+            mv .venv "$VENV_DIR"
+        else
+            rm -rf .venv
+        fi
+    fi
+    if [ ! -d "$VENV_DIR" ]; then
+        uv venv --python 3.12 "$VENV_DIR"
+    fi
+    ln -sfn "$VENV_DIR" .venv
+elif [ ! -d .venv ]; then
     uv venv --python 3.12 .venv
 fi
 # shellcheck disable=SC1091
 source .venv/bin/activate
-uv pip install -e .
+if [ "$REPO_ROOT" = "/workspace" ]; then
+    uv pip install .
+else
+    uv pip install -e .
+fi
 
 echo "==> .env"
 if [ ! -f .env ]; then
@@ -78,10 +99,21 @@ if ! grep -q '^GAMECRAFT_BENCH_JOBS_ROOT=' .env; then
     if mkdir -p "$REPO_ROOT/../gamecraft-bench-jobs" 2>/dev/null; then
         echo "GAMECRAFT_BENCH_JOBS_ROOT=$REPO_ROOT/../gamecraft-bench-jobs" >> .env
     else
-        echo "GAMECRAFT_BENCH_JOBS_ROOT=/tmp/gamecraft-bench-jobs" >> .env
+        echo "GAMECRAFT_BENCH_JOBS_ROOT=${HOME}/gamecraft-bench-jobs" >> .env
     fi
     echo "    set GAMECRAFT_BENCH_JOBS_ROOT"
 fi
+
+echo "==> container mountpoints"
+# LocalSubprocessEnvironment bind-mounts sandbox dirs onto these host
+# paths inside a user namespace. User-ns "root" cannot create them on
+# the real rootfs, so they must exist and be writable by this user.
+for d in /logs /tests /solution /installed_agent /tools; do
+    if [ ! -d "$d" ]; then
+        need_sudo mkdir -p "$d"
+    fi
+    need_sudo chown "$(id -u):$(id -g)" "$d"
+done
 
 echo "==> smoke"
 command -v harbor
