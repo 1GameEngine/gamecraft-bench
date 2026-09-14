@@ -198,7 +198,7 @@ They source `.env`, pin the local agent implementation, forward the required API
 Claude Code / Codex-based wrappers require `--ak reasoning_effort=<low|medium|high>`.
 The Kimi wrapper passes `--ak thinking=true` by default.
 
-Job artifacts land under `$GAMECRAFT_BENCH_JOBS_ROOT` (default `../gamecraft-bench-jobs/<timestamp>/<task>__<id>/`).
+Job artifacts land under `$GAMECRAFT_BENCH_JOBS_ROOT` (default `../gamecraft-bench-jobs/<timestamp>/<task>__<id>/`). If that sibling path is not writable (typical for Cloud Agent `/workspace`), `scripts/run.sh` uses `/tmp/gamecraft-bench-jobs` instead. The jobs tree must not live under the repo path that is bind-mounted as `/workspace` inside the trial mount namespace.
 
 ## Dashboard
 
