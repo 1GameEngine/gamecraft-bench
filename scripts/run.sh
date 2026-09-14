@@ -43,7 +43,15 @@ for arg in "$@"; do
     esac
 done
 
-: "${GAMECRAFT_BENCH_JOBS_ROOT:=$REPO_ROOT/../gamecraft-bench-jobs}"
+if [ -z "${GAMECRAFT_BENCH_JOBS_ROOT:-}" ]; then
+    sibling="$REPO_ROOT/../gamecraft-bench-jobs"
+    if mkdir -p "$sibling" 2>/dev/null; then
+        GAMECRAFT_BENCH_JOBS_ROOT="$sibling"
+    else
+        # Cloud Agent /workspace parent is often not writable.
+        GAMECRAFT_BENCH_JOBS_ROOT="$REPO_ROOT/gamecraft-bench-jobs"
+    fi
+fi
 mkdir -p "$GAMECRAFT_BENCH_JOBS_ROOT"
 
 exec harbor run \
