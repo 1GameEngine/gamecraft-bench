@@ -132,9 +132,13 @@ From the repo root, as a user with `sudo`:
 ```
 
 The script is idempotent. It installs the packages above, pins Godot 4.6.2 to
-`/opt/godot`, creates `.venv` with `uv`, `uv pip install -e .`, and writes a
+`/opt/godot`, pins 1Game **1.21.0** (`1game` / `1gameplay` / `@1game/engine-bundle`)
+to `/opt/1game`, creates `.venv` with `uv`, installs this repo, and writes a
 `.env` from `.env.example` if missing (judge defaults to `stub` so Harbor
 smoke does not require API keys). Re-running leaves an existing `.env` alone.
+Node 20+ is required for 1Game (nvm Node 22 is used when present). After
+`1game init && pnpm install`, run `1game-pnpm-natives` (or `pnpm approve-builds --all && pnpm rebuild`)
+so `better-sqlite3` is built; otherwise prefer `/usr/local/bin/1gameplay`.
 
 ### 4. Python (manual)
 

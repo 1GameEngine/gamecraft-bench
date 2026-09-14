@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Idempotent local / Cloud Agent bootstrap for GameCraft-Bench.
-# Installs system libs, pinned Godot 4.6.2, uv, the Python package, and a
+# Installs system libs, pinned Godot 4.6.2, the 1Game 1.21.0 toolchain
+# (cli / 1gameplay / engine-bundle / skill), uv, the Python package, and a
 # stub-judge .env if one is missing. Safe to run twice.
 
 set -euo pipefail
@@ -9,6 +10,8 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
 GODOT_VERSION="4.6.2"
+ONEGAME_VERSION="1.21.0"
+ONEGAME_PREFIX="/opt/1game"
 GODOT_ZIP="Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
 GODOT_URL="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/${GODOT_ZIP}"
 GODOT_MIRROR="https://gh-proxy.com/${GODOT_URL}"
@@ -23,13 +26,22 @@ need_sudo() {
 
 export PATH="${HOME}/.local/bin:/usr/local/bin:${PATH}"
 
+# Prefer nvm Node 22 over apt's nodejs 18 when present.
+if [ -d "${HOME}/.nvm/versions/node" ]; then
+    _node_dir="$(ls -d "${HOME}/.nvm/versions/node"/v22* 2>/dev/null | sort -V | tail -1 || true)"
+    if [ -n "${_node_dir:-}" ]; then
+        export PATH="${_node_dir}/bin:${PATH}"
+    fi
+fi
+
 echo "==> system packages"
 need_sudo apt-get update -qq
 need_sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     xvfb xdotool ffmpeg x11-utils x11-xserver-utils \
     libxcursor1 libxinerama1 libxrandr2 libxi6 libgl1 libegl1 \
     unzip ca-certificates curl \
-    x11vnc novnc
+    x11vnc novnc \
+    python3 make g++ pkg-config
 
 echo "==> Godot ${GODOT_VERSION}"
 if [ -x /opt/godot/godot ] && /opt/godot/godot --version 2>/dev/null | grep -q "${GODOT_VERSION}"; then
@@ -115,9 +127,56 @@ for d in /logs /tests /solution /installed_agent /tools; do
     need_sudo chown "$(id -u):$(id -g)" "$d"
 done
 
+echo "==> 1Game ${ONEGAME_VERSION}"
+node_major="$(node -p "process.versions.node.split('.')[0]" 2>/dev/null || echo 0)"
+if [ "$node_major" -lt 20 ]; then
+    echo "    Node 20+ required for 1Game (got $(node -v 2>/dev/null || echo none))" >&2
+    exit 1
+fi
+echo "    node $(node -v) npm $(npm -v)"
+need_sudo mkdir -p "$ONEGAME_PREFIX"
+need_sudo chown "$(id -u):$(id -g)" "$ONEGAME_PREFIX"
+cli_pkg="${ONEGAME_PREFIX}/node_modules/@1game/cli/package.json"
+if [ -f "$cli_pkg" ] && grep -q "\"version\": \"${ONEGAME_VERSION}\"" "$cli_pkg"; then
+    echo "    already present: ${ONEGAME_VERSION}"
+else
+    cat > "${ONEGAME_PREFIX}/package.json" <<EOF
+{
+  "name": "gamecraft-1game-toolchain",
+  "private": true,
+  "dependencies": {
+    "@1game/cli": "${ONEGAME_VERSION}",
+    "@1game/cli-1gameplay": "${ONEGAME_VERSION}",
+    "@1game/engine-bundle": "${ONEGAME_VERSION}",
+    "@1game/skill": "${ONEGAME_VERSION}"
+  }
+}
+EOF
+    (cd "$ONEGAME_PREFIX" && npm install --omit=dev)
+fi
+need_sudo ln -sf "${ONEGAME_PREFIX}/node_modules/.bin/1game" /usr/local/bin/1game
+need_sudo ln -sf "${ONEGAME_PREFIX}/node_modules/.bin/1gameplay" /usr/local/bin/1gameplay
+# pnpm 10 ignores better-sqlite3 / esbuild scripts until approved. The
+# /opt/1game npm install already compiled them; `pnpm exec 1gameplay` in a
+# freshly inited game still needs this once:
+need_sudo tee /usr/local/bin/1game-pnpm-natives >/dev/null <<'EOS'
+#!/usr/bin/env bash
+set -euo pipefail
+pnpm approve-builds --all
+pnpm rebuild
+EOS
+need_sudo chmod +x /usr/local/bin/1game-pnpm-natives
+1game --help >/dev/null
+1gameplay --help >/dev/null
+echo "    1game $(node -p "require('${ONEGAME_PREFIX}/node_modules/@1game/cli/package.json').version")"
+echo "    1gameplay $(node -p "require('${ONEGAME_PREFIX}/node_modules/@1game/cli-1gameplay/package.json').version")"
+echo "    engine-bundle $(node -p "require('${ONEGAME_PREFIX}/node_modules/@1game/engine-bundle/package.json').version")"
+
 echo "==> smoke"
 command -v harbor
 harbor --help >/dev/null
 python -c "import gamecraft_bench; print('gamecraft_bench ok')"
 unshare --user --map-root-user --mount true
+command -v 1game
+command -v 1gameplay
 echo "setup_local.sh complete"
