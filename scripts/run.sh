@@ -48,8 +48,10 @@ if [ -z "${GAMECRAFT_BENCH_JOBS_ROOT:-}" ]; then
     if mkdir -p "$sibling" 2>/dev/null; then
         GAMECRAFT_BENCH_JOBS_ROOT="$sibling"
     else
-        # Cloud Agent /workspace parent is often not writable.
-        GAMECRAFT_BENCH_JOBS_ROOT="$REPO_ROOT/gamecraft-bench-jobs"
+        # Must NOT live under the repo's /workspace bind: verifier log
+        # symlinks are absolute host paths, and the mount namespace
+        # overlays /workspace with the trial sandbox.
+        GAMECRAFT_BENCH_JOBS_ROOT="/tmp/gamecraft-bench-jobs"
     fi
 fi
 mkdir -p "$GAMECRAFT_BENCH_JOBS_ROOT"

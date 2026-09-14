@@ -78,7 +78,7 @@ if ! grep -q '^GAMECRAFT_BENCH_JOBS_ROOT=' .env; then
     if mkdir -p "$REPO_ROOT/../gamecraft-bench-jobs" 2>/dev/null; then
         echo "GAMECRAFT_BENCH_JOBS_ROOT=$REPO_ROOT/../gamecraft-bench-jobs" >> .env
     else
-        echo "GAMECRAFT_BENCH_JOBS_ROOT=$REPO_ROOT/gamecraft-bench-jobs" >> .env
+        echo "GAMECRAFT_BENCH_JOBS_ROOT=/tmp/gamecraft-bench-jobs" >> .env
     fi
     echo "    set GAMECRAFT_BENCH_JOBS_ROOT"
 fi
