@@ -1,0 +1,26 @@
+{
+  "score_formula": "BUILD * ((M1 + V1) / 2)",
+  "max_demos": 10,
+  "max_demo_seconds": 20,
+  "build_check": {
+    "id": "BUILD",
+    "cmd": "godot --headless --path /workspace/game --quit-after 5",
+    "description": "Ignored for 1Game host scoring; Python runs 1game build + 1gameplay create + step."
+  },
+  "categories": [
+    {"name": "Core Mechanics", "items": ["M1"]},
+    {"name": "Functional Visuals", "items": ["V1"]}
+  ],
+  "requirements": [
+    {
+      "id": "M1",
+      "agg": "max",
+      "description": "Clicking the full-screen panel increments a click counter (pipeline smoke; not a ranked score)."
+    },
+    {
+      "id": "V1",
+      "agg": "mean",
+      "description": "A 1280x720 scene is visible (pipeline smoke; not a ranked score)."
+    }
+  ]
+}

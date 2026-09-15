@@ -33,16 +33,21 @@ import dataclasses
 import json
 import math
 import operator
+import os
 import random
 import shlex
 import shutil
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 
 from .judges import JudgeError, MultimodalJudge, get_judge
 from .judges.base import JudgeRequest, RequirementSpec
 from .replay import ReplayError, replay_trace
+
+# replay_1game is imported lazily after 1Game dispatch so Godot Harbor
+# trials never load Node/sqlite side effects.
 
 _JUDGE_MAX_ATTEMPTS = 5
 
@@ -81,6 +86,15 @@ class ScoreResult:
     judge_name: str
     judge_model: str
     errors: list[str]                            # non-fatal (one per failed pair)
+    engine: str = "godot"                        # "godot" | "1game"
+
+
+class InfraError(RuntimeError):
+    """Host-path infrastructure failure (missing 1gameplay, etc.).
+
+    Not a game-quality zero. Harbor ``test.sh`` is unchanged and must
+    not be taught this exception; 1Game scoring is host CLI only.
+    """
 
 
 def score_project(
@@ -95,8 +109,9 @@ def score_project(
     frame_interval_seconds: float = 0.5,
     max_demo_seconds: float | None = None,
     max_demos: int | None = None,
+    engine: str | None = None,
 ) -> ScoreResult:
-    """Score one Godot project. See module docstring for the pipeline."""
+    """Score one Godot or 1Game project. See module docstring for the pipeline."""
     project_dir = Path(project_dir).resolve()
     rubric_path = Path(rubric_path).resolve()
     output_dir = Path(output_dir).resolve()
@@ -117,8 +132,20 @@ def score_project(
     judge = judge or get_judge()
     errors: list[str] = []
 
-    # 1. Build check.
-    build_ok, build_log = _run_build_check(build_spec, output_dir, project_dir)
+    resolved_engine = detect_engine(project_dir, engine)
+    replay_fn = replay_trace
+    if resolved_engine == "1game":
+        from .. import config as _cfg
+        if not _cfg.ONEGAMEPLAY_BIN:
+            raise InfraError(
+                "1Game project requires 1gameplay on PATH "
+                "(set GAMECRAFT_BENCH_ONEGAMEPLAY_BIN); this is not BUILD=0"
+            )
+        from .replay_1game import replay_trace as replay_fn
+        build_ok, build_log = _run_1game_build_check(output_dir, project_dir)
+    else:
+        # 1. Build check (Godot rubric cmd + host path rewriter).
+        build_ok, build_log = _run_build_check(build_spec, output_dir, project_dir)
 
     # Default per-requirement = 0; populated by judge if BUILD passes.
     # Per-requirement `agg` controls how the demo scores are folded into a
@@ -162,7 +189,7 @@ def score_project(
             mp4_path = demo_dir / f"{demo_id}.mp4"
             log_dir = demo_dir / "logs"
             try:
-                rr = replay_trace(
+                rr = replay_fn(
                     project_dir=project_dir,
                     trace_path=trace_path,
                     output_mp4=mp4_path,
@@ -278,6 +305,7 @@ def score_project(
         judge_name=type(judge).__name__,
         judge_model=judge.model,
         errors=errors,
+        engine=resolved_engine,
     )
 
     _write_artifacts(output_dir, result, judge_log, variables)
@@ -287,6 +315,103 @@ def score_project(
 # ---------------------------------------------------------------------------
 # Internals
 # ---------------------------------------------------------------------------
+
+
+def detect_engine(project_dir: Path, engine: str | None = None) -> str:
+    """Filesystem probe. ``project.godot`` wins unless ``engine`` is exclusive."""
+    requested = (engine or "auto").strip().lower()
+    if requested in ("godot", "1game"):
+        return requested
+    if requested not in ("", "auto"):
+        raise InfraError(f"unknown --engine {engine!r}")
+    root = Path(project_dir)
+    if (root / "project.godot").is_file():
+        return "godot"
+    if _looks_like_1game(root):
+        return "1game"
+    return "godot"
+
+
+def _looks_like_1game(project_dir: Path) -> bool:
+    if (project_dir / "src" / "game.tsx").is_file():
+        return True
+    if any(project_dir.glob("1game.config.*")):
+        return True
+    pkg = project_dir / "package.json"
+    if not pkg.is_file():
+        return False
+    try:
+        data = json.loads(pkg.read_text())
+    except json.JSONDecodeError:
+        return False
+    deps = {}
+    for key in ("dependencies", "devDependencies"):
+        block = data.get(key) or {}
+        if isinstance(block, dict):
+            deps.update(block)
+    return "@1game/engine-bundle" in deps
+
+
+def _run_1game_build_check(
+    output_dir: Path, project_dir: Path,
+) -> tuple[bool, str]:
+    """Python three-step BUILD. Ignores rubric ``godot --headless`` cmd."""
+    from .. import config as _cfg
+
+    project_dir = Path(project_dir).resolve()
+    log_path = output_dir / "build.log"
+    game_bin = _cfg.ONEGAME_BIN
+    play_bin = _cfg.ONEGAMEPLAY_BIN
+    if not game_bin or not play_bin:
+        raise InfraError("1Game BUILD requires 1game and 1gameplay on PATH")
+    env = dict(os.environ)
+    node_modules = _cfg.ONEGAME_NODE_MODULES
+    if node_modules:
+        existing = env.get("NODE_PATH", "")
+        env["NODE_PATH"] = (
+            node_modules if not existing else f"{node_modules}:{existing}"
+        )
+    timeout = 300.0
+    header = (
+        f"# engine: 1game\n"
+        f"# cwd: {project_dir}\n"
+        f"# skipped rubric godot --headless cmd\n"
+    )
+    chunks = [header]
+    with tempfile.TemporaryDirectory(prefix="gc1game-build-", dir="/tmp") as tmp:
+        archive = Path(tmp) / "build.1gamerecord"
+        steps = [
+            [game_bin, "build"],
+            [play_bin, "create", "--entry", "src/game.tsx", "--out", str(archive)],
+            [play_bin, "step", str(archive), "--ms", "16", "--repeat", "5"],
+        ]
+        ok = True
+        for argv in steps:
+            chunks.append(f"$ {' '.join(argv)}\n")
+            try:
+                proc = subprocess.run(
+                    argv,
+                    cwd=str(project_dir),
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                )
+            except subprocess.TimeoutExpired as e:
+                chunks.append(f"timed out after {timeout}s\n{e.stdout or ''}{e.stderr or ''}\n")
+                ok = False
+                break
+            except OSError as e:
+                chunks.append(f"could not run: {e}\n")
+                ok = False
+                break
+            chunks.append((proc.stdout or "") + (proc.stderr or "") + "\n")
+            if proc.returncode != 0:
+                ok = False
+                break
+    log = "".join(chunks)
+    log_path.write_text(log)
+    return ok, log
 
 
 def _list_traces(project_dir: Path) -> list[Path]:
@@ -470,6 +595,7 @@ def _write_artifacts(
         "reward": result.reward,
         "formula": result.formula,
         "build_ok": result.build_ok,
+        "engine": result.engine,
         "judge": {"name": result.judge_name, "model": result.judge_model},
         "variables": variables,
         "requirements": [

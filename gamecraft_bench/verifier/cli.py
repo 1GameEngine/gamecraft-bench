@@ -30,7 +30,7 @@ from pathlib import Path
 
 from .. import config as cfg
 from .judges import get_judge
-from .score import ScoreResult, score_project
+from .score import InfraError, ScoreResult, score_project
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -70,6 +70,13 @@ def main(argv: list[str] | None = None) -> int:
                              "Defaults to the rubric's max_demos, falling back to 10.")
     parser.add_argument("--pass-threshold", type=float, default=0.5,
                         help="Reward >= threshold => exit 0 (default: 0.5).")
+    parser.add_argument(
+        "--engine",
+        choices=("auto", "godot", "1game"),
+        default="auto",
+        help="Runtime selection. Default auto: project.godot wins, else "
+             "src/game.tsx / 1game.config / engine-bundle. Exclusive when set.",
+    )
     args = parser.parse_args(argv)
 
     args.output.mkdir(parents=True, exist_ok=True)
@@ -82,19 +89,26 @@ def main(argv: list[str] | None = None) -> int:
     print(f"[verifier] judge     = {type(judge).__name__}(model={judge.model!r})",
           flush=True)
     print(f"[verifier] godot_bin = {cfg.GODOT_BIN}", flush=True)
+    print(f"[verifier] engine    = {args.engine}", flush=True)
+    print(f"[verifier] 1gameplay = {cfg.ONEGAMEPLAY_BIN}", flush=True)
 
-    result = score_project(
-        project_dir=args.project,
-        rubric_path=args.rubric,
-        output_dir=args.output,
-        judge=judge,
-        fps=args.fps,
-        viewport=(args.width, args.height),
-        record_size=(args.record_width, args.record_height),
-        frame_interval_seconds=args.frame_interval_seconds,
-        max_demo_seconds=args.max_demo_seconds,
-        max_demos=args.max_demos,
-    )
+    try:
+        result = score_project(
+            project_dir=args.project,
+            rubric_path=args.rubric,
+            output_dir=args.output,
+            judge=judge,
+            fps=args.fps,
+            viewport=(args.width, args.height),
+            record_size=(args.record_width, args.record_height),
+            frame_interval_seconds=args.frame_interval_seconds,
+            max_demo_seconds=args.max_demo_seconds,
+            max_demos=args.max_demos,
+            engine=None if args.engine == "auto" else args.engine,
+        )
+    except InfraError as exc:
+        print(f"[verifier] infra error: {exc}", flush=True)
+        return 2
 
     _print_summary(result)
     _write_reward(args.output, result)
