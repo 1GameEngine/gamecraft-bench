@@ -204,6 +204,24 @@ The Kimi wrapper passes `--ak thinking=true` by default.
 
 Job artifacts land under `$GAMECRAFT_BENCH_JOBS_ROOT` (default `../gamecraft-bench-jobs/<timestamp>/<task>__<id>/`). If that sibling path is not writable (typical for Cloud Agent `/workspace`), `scripts/run.sh` uses `$HOME/gamecraft-bench-jobs` instead. Do not put jobs under `/workspace` (trial overlay) or `/tmp` (private `/tmp` bind in the namespace), or verifier log symlinks will break.
 
+## Host `--project` scoring (Godot path + 1Game fixture)
+
+Harbor's 140 tasks remain Godot-only (`./scripts/run.sh --agent …`). For a **host** directory (no overlay), the verifier CLI honors `--project`:
+
+```bash
+unset PYTHONPATH
+cd "$HOME"   # do not run from /workspace (sys.path[0] would shadow the venv)
+python -m gamecraft_bench.verifier \
+  --project /abs/path/to/game \
+  --rubric  /abs/path/to/rubric.json \
+  --output  "$HOME/gamecraft-bench-jobs/canary/verifier" \
+  --judge stub
+```
+
+`--engine auto` (default): `project.godot` wins; otherwise `src/game.tsx` / `1game.config.*` / `@1game/engine-bundle` selects 1Game. 1Game **ignores** the rubric `godot --headless` command and runs `1game build` + `1gameplay create` + `step --ms 16 --repeat 5` using `/usr/local/bin/1gameplay` and `NODE_PATH=/opt/1game/node_modules`.
+
+This is a **pipeline** path. `StubJudge` scores are not engine rankings and must not be compared to the table above. Do not spawn generation Tasks from `skills/gamecraft-host-dual-run/SKILL.md` while it is HARD-locked.
+
 ## Dashboard
 
 `gamecraft_bench/dashboard/` is a browser-based dashboard for inspecting benchmark jobs, scores, artifacts, and the playable games agents produce.
