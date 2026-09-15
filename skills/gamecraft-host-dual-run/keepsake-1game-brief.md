@@ -2,7 +2,7 @@
 
 Read `keepsake-main.md` first, then this envelope. Do **not** read `tasks/visualnovel-keepsake/instruction.md`. Spawn policy is **HARD-no-spawn** in `SKILL.md` until **phase-1-generate**.
 
-Harbor 140 instruction remains Godot-only. Do not emit `project.godot`, Godot scenes, `godot --headless`, `screenshot.sh`, `--scenario`, or copied Godot traces.
+Harbor 140 instruction remains Godot-only. Do not emit `project.godot`, Godot scenes, `godot --headless`, `screenshot.sh`, `--scenario`, or copied Godot traces. Do not copy Godot `demo_outputs` coordinates or scenario ids.
 
 Follow `@1game/skill`. System `/usr/local/bin/1game` and `1gameplay` only — never `pnpm exec`.
 

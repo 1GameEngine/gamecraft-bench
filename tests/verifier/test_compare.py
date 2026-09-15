@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from gamecraft_bench.verifier.compare import merge_pair
+from gamecraft_bench.verifier.compare import main, merge_pair
 
 
 def _bd(*, engine: str, name: str, model: str, comparable: bool, media: str | None = None) -> dict:
@@ -51,6 +51,9 @@ def test_merge_accepts_matching_real_judge() -> None:
         _bd(engine="1game", name="OpenAIJudge", model="gpt-4o", comparable=True),
     )
     assert table["publishable"] is True
+    assert table["success_gate"] is False
+    assert table["cite_columns"] is False
+    assert table["not_a_paper_ranking"] is True
     assert table["diagnostic_columns"]["M3"]["godot"] == 0.8
     assert "D3" in table["unpublished_ids"]
     assert table["judge"]["model"] == "gpt-4o"
@@ -73,11 +76,45 @@ def test_merge_rejects_auto_engine_on_1game_arm() -> None:
 
 
 def test_keepsake_1game_brief_names_m3_m4() -> None:
-    text = (
-        Path(__file__).resolve().parents[2]
-        / "skills/gamecraft-host-dual-run/keepsake-1game-brief.md"
-    ).read_text()
-    assert "Persistent visible fragments (M3)" in text
-    assert "Gating (M4)" in text
-    assert "do not emit `project.godot`" in text.lower() or "Do not emit `project.godot`" in text
+    root = Path(__file__).resolve().parents[2]
+    skill = root / "skills/gamecraft-host-dual-run"
+    text = (skill / "keepsake-1game-brief.md").read_text()
+    assert "(M3)" not in text
+    assert "(M4)" not in text
+    assert "M3)" not in text
+    assert "M4)" not in text
+    lower = text.lower()
+    assert "memory board" in lower or "journal" in lower
+    assert "grows" in lower
+    assert "gating" in lower
+    assert "separate traces" in lower
+    assert "do not emit" in lower and "project.godot" in lower
     assert "Do not copy Godot" in text
+    main_md = skill / "keepsake-main.md"
+    assert main_md.is_file()
+    main_text = main_md.read_text()
+    assert "M3" not in main_text
+    assert "M4" not in main_text
+
+
+def test_compare_main_exits_zero_when_not_publishable(tmp_path: Path) -> None:
+    godot_dir = tmp_path / "godot"
+    onegame_dir = tmp_path / "onegame"
+    godot_dir.mkdir()
+    onegame_dir.mkdir()
+    (godot_dir / "breakdown.json").write_text(
+        json.dumps(_bd(engine="godot", name="StubJudge", model="1.0", comparable=False))
+    )
+    (onegame_dir / "breakdown.json").write_text(
+        json.dumps(_bd(engine="1game", name="StubJudge", model="1.0", comparable=False))
+    )
+    out = tmp_path / "table.json"
+    rc = main(
+        ["--godot", str(godot_dir), "--onegame", str(onegame_dir), "--out", str(out)]
+    )
+    assert rc == 0
+    assert out.is_file()
+    dumped = json.loads(out.read_text())
+    assert dumped["publishable"] is False
+    assert dumped["success_gate"] is False
+    assert dumped["cite_columns"] is False

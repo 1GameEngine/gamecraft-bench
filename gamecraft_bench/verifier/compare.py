@@ -79,18 +79,27 @@ def merge_pair(godot_bd: dict, onegame_bd: dict) -> dict:
         if rid in g_req and rid in o_req
     }
 
-    publishable = not blockers
+    publishable = not blockers  # internally consistent pair; not paper-ready, not CLI success
     return {
         "kind": "host-dual-engine-diagnostic",
         "not_a_paper_ranking": True,
+        "success_gate": False,
+        "cite_columns": False,
         "publishable": publishable,
         "blockers": blockers,
         "notes": [
-            "This file is a host diagnostic, not a dual-engine ranking or paper table.",
+            "This file is a host diagnostic dump, not a dual-engine ranking or paper table.",
+            "success_gate is false: writing table.json and exiting 0 is not a ranking success.",
+            "cite_columns is false: do not cite diagnostic columns as engine quality.",
+            "publishable means the pair is internally consistent (no blockers), not fit-for-paper.",
+            "Harbor instruction.md remains the Godot academic task and must not be the diagnostic gen spec.",
+            "Shared MAIN and plumbing appendices live under skills/gamecraft-host-dual-run/.",
             "Harbor reward/Overall is not a comparison column.",
             "V/A, formula Overall, and D3 are unpublished (slideshow vs x11grab; ColorRect; max agg).",
-            "M3/M4/D2/D4/D5 remain noisy: same rubric, different generation briefs.",
-            "Instruction.md remains a Godot task; 1Game arm uses keepsake-1game-brief.md.",
+            "M3/M4/D2/D4/D5 remain noisy: slideshow vs x11grab, +2 frames per click, 20s traces from title.",
+            "Do not copy pixel-reader notes into diagnostic_columns.",
+            "StubJudge is smoke, not a ranking.",
+            "CLI exit is not success; inspect blockers and publishable in the JSON.",
             "BUILD is a launch gate, not isomorphic compiler quality.",
             media_note,
             "mouse_click/key_press cost +2 1Game logic frames vs Godot same-frame xdotool.",
@@ -127,7 +136,7 @@ def main(argv: list[str] | None = None) -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(table, indent=2) + "\n")
     print(json.dumps({"publishable": table["publishable"], "blockers": table["blockers"]}))
-    return 0 if table["publishable"] else 1
+    return 0
 
 
 if __name__ == "__main__":
