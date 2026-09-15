@@ -32,6 +32,7 @@ assets/library-oga/
 
 # Local Claude/IDE workspace state
 .claude/
+.cursor/
 .vscode/
 .idea/
 
