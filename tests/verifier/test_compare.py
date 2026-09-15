@@ -15,6 +15,7 @@ def _bd(*, engine: str, name: str, model: str, comparable: bool, media: str | No
     reqs = [
         {"id": "M3", "aggregated": 0.8 if engine == "godot" else 0.4},
         {"id": "M4", "aggregated": 0.7 if engine == "godot" else 0.3},
+        {"id": "D3", "aggregated": 1.0},
         {"id": "D2", "aggregated": 0.6 if engine == "godot" else 0.2},
         {"id": "V1", "aggregated": 0.9},
         {"id": "A4", "aggregated": 0.1},
@@ -39,8 +40,9 @@ def test_merge_rejects_stub() -> None:
     assert table["publishable"] is False
     assert table["not_a_paper_ranking"] is True
     assert "unpublished" in table
-    assert "V1" not in table["weak_comparable"]
-    assert "A4" not in table["weak_comparable"]
+    assert "V1" not in table["diagnostic_columns"]
+    assert "A4" not in table["diagnostic_columns"]
+    assert "D3" not in table["diagnostic_columns"]
 
 
 def test_merge_accepts_matching_real_judge() -> None:
@@ -49,7 +51,8 @@ def test_merge_accepts_matching_real_judge() -> None:
         _bd(engine="1game", name="OpenAIJudge", model="gpt-4o", comparable=True),
     )
     assert table["publishable"] is True
-    assert table["weak_comparable"]["M3"]["godot"] == 0.8
+    assert table["diagnostic_columns"]["M3"]["godot"] == 0.8
+    assert "D3" in table["unpublished_ids"]
     assert table["judge"]["model"] == "gpt-4o"
 
 
@@ -67,3 +70,14 @@ def test_merge_rejects_auto_engine_on_1game_arm() -> None:
     o = _bd(engine="godot", name="OpenAIJudge", model="gpt-4o", comparable=True)
     table = merge_pair(g, o)
     assert table["publishable"] is False
+
+
+def test_keepsake_1game_brief_names_m3_m4() -> None:
+    text = (
+        Path(__file__).resolve().parents[2]
+        / "skills/gamecraft-host-dual-run/keepsake-1game-brief.md"
+    ).read_text()
+    assert "Persistent visible fragments (M3)" in text
+    assert "Gating (M4)" in text
+    assert "do not emit `project.godot`" in text.lower() or "Do not emit `project.godot`" in text
+    assert "Do not copy Godot" in text

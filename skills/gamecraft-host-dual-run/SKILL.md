@@ -1,31 +1,30 @@
-# GameCraft host dual-engine scoring
+# GameCraft host dual-engine **diagnostic** (not a ranking)
 
-**HARD-no-tasks:** Do **not** spawn any Cursor Task (no generators, no scorers, no 1+1, no 10+5) until a follow-up **explicitly** unlocks **1+1-only** *and* a real VLM key is in the process env. Unlock slug is only `visualnovel-keepsake`. This file is a host-CLI contract, not a dispatch button.
+**HARD-no-tasks:** Do **not** spawn any Cursor Task (no generators, no scorers, no 1+1, no 10+5) until a follow-up **explicitly** unlocks **1+1-only** *and* a real VLM key is already in the process env. Unlock slug is only `visualnovel-keepsake`. Key-first, then unlock. This file is not a dispatch button.
 
-Harbor 140-task Godot evaluation is unchanged. `detect_engine(auto)` is **always Godot**. 1Game exists only with exclusive `--engine 1game`. This skill does **not** replace `@1game/skill`. Do not commit `.cursor/skills/1game*`. Do not run `harbor run --agent claude-code` as the dual-engine path.
+Harbor 140-task Godot evaluation is unchanged. `detect_engine(auto)` is **always Godot**. 1Game exists only with exclusive `--engine 1game`. Do not replace `@1game/skill`. Do not commit `.cursor/skills/1game*`. Do not run `harbor run --agent claude-code` as the dual-engine path.
+
+`table.json` is `kind: host-dual-engine-diagnostic`. Do **not** call it a dual-engine score ranking. Do not cite Harbor `reward` / Overall / V/A / D3.
 
 ## Named greens (not Task unlocks)
 
-- **A-merge-green:** Godot BUILD `--project` rewriter.
-- **B-fixture-green / timeline-green:** `tests/fixtures/1game_minimal/` with in-step screenshots + concat (not `-loop 1`). Pipeline only.
-- **score-green:** real VLM, `judge.name != StubJudge`, no `judge failed`, 1Game timeline mp4. Stub is noise.
-- **publishable table:** `python -m gamecraft_bench.verifier.compare` with `publishable: true`. Never Harbor `reward` / Overall. V/A unpublished. Weak columns: M3/M4/D2–D5 only.
+- Pipeline greens: BUILD rewriter, 1Game timeline slideshow, fixture pixel-diff.
+- **score-green:** real VLM, non-Stub, no `judge failed`, 1Game timeline mp4.
+- **diagnostic table:** `python -m gamecraft_bench.verifier.compare` with `publishable: true`. Columns: **M3/M4/D2/D4/D5** only. Unpublished: V/A, Overall, D3.
 
-First same-slug 1Game generation after unlock: **`visualnovel-keepsake`** using `keepsake-1game-brief.md`, not sokoban, not the Godot `instruction.md` verbatim.
+After unlock, generate 1Game with **`keepsake-1game-brief.md`** (must include visible fragment board + gating + two traces for endings). Not sokoban. Not Godot `instruction.md` verbatim.
 
 ## Host CLI
 
-Jobs for Harbor stay under `$HOME/gamecraft-bench-jobs`. Compare runs use a **different root** so the dashboard two-level trial scanner cannot ingest them:
+Harbor jobs: `$HOME/gamecraft-bench-jobs`. Compare: **sibling** `$HOME/gamecraft-bench-jobs-compare/` (never nest under Harbor jobs; never point dashboard `JOBS_ROOT` at `$HOME`).
 
 ```bash
 unset PYTHONPATH
 cd "$HOME"
-# Godot arm
 python -m gamecraft_bench.verifier \
-  --project <godot-game> --rubric <rubric.json> \
+  --project <godot-game> --rubric <keepsake-rubric.json> \
   --output "$HOME/gamecraft-bench-jobs-compare/visualnovel-keepsake/godot" \
   --engine godot --judge <real> --judge-model <sku>
-# 1Game arm — exclusive flag required
 python -m gamecraft_bench.verifier \
   --project <1game-game> --rubric <same-rubric.json> \
   --output "$HOME/gamecraft-bench-jobs-compare/visualnovel-keepsake/1game" \
@@ -36,9 +35,7 @@ python -m gamecraft_bench.verifier.compare \
   --out "$HOME/gamecraft-bench-jobs-compare/visualnovel-keepsake/table.json"
 ```
 
-`--engine auto` is Godot-only (Harbor). Do not use auto for a comparison. Reinstall non-editable after editing `gamecraft_bench/`. Never `pnpm exec 1gameplay`.
-
-Missing `1gameplay` with `--engine 1game` is infra (exit 2, no `reward.txt`). Godot judge hard-fail still writes `reward.txt` (Harbor protocol). 1Game judge hard-fail skips `reward.txt`.
+`--engine auto` is Harbor Godot. Reinstall non-editable after editing `gamecraft_bench/`. Never `pnpm exec 1gameplay`.
 
 ```bash
 pytest tests/verifier -o python_files='test_*.py' -o testpaths=tests/verifier

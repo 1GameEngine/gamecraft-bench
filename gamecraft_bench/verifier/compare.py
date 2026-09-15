@@ -1,8 +1,8 @@
-"""Assemble a host dual-engine diagnostic table. Not a Harbor ranking.
+"""Assemble a host dual-engine **diagnostic** table. Not a ranking.
 
 Never treat Harbor ``reward.txt`` / Overall as cross-engine quality.
-V/A and formula Overall are not published. Weak-comparable ids are
-M3/M4/D2–D5 only. Generation remains Godot-asymmetric.
+V/A, formula Overall, and D3 (max-aggregation endings) are unpublished.
+Diagnostic columns: M3/M4/D2/D4/D5 only.
 """
 
 from __future__ import annotations
@@ -11,8 +11,9 @@ import argparse
 import json
 from pathlib import Path
 
-# Keepsake-oriented defaults; unknown ids are listed as "other".
-WEAK_COMPARABLE_IDS = ("M3", "M4", "D2", "D3", "D4", "D5")
+# Diagnostic columns only. D3 uses agg=max + visual wording — not a column.
+DIAGNOSTIC_IDS = ("M3", "M4", "D2", "D4", "D5")
+UNPUBLISHED_MAX_IDS = ("D3",)
 VISUAL_CONTAMINATED_IDS = ("M1", "M2", "M5", "D1")
 
 
@@ -52,13 +53,22 @@ def merge_pair(godot_bd: dict, onegame_bd: dict) -> dict:
 
     g_req = _req_map(godot_bd)
     o_req = _req_map(onegame_bd)
-    weak: dict[str, dict] = {}
-    for rid in WEAK_COMPARABLE_IDS:
+    diagnostic: dict[str, dict] = {}
+    for rid in DIAGNOSTIC_IDS:
         if rid in g_req and rid in o_req:
-            weak[rid] = {
+            diagnostic[rid] = {
                 "godot": g_req[rid].get("aggregated"),
                 "1game": o_req[rid].get("aggregated"),
             }
+    unpublished_ids = {
+        rid: {
+            "godot": g_req[rid].get("aggregated"),
+            "1game": o_req[rid].get("aggregated"),
+            "note": "D3 uses agg=max and visual ending language; not a diagnostic column",
+        }
+        for rid in UNPUBLISHED_MAX_IDS
+        if rid in g_req and rid in o_req
+    }
     contaminated = {
         rid: {
             "godot": g_req[rid].get("aggregated"),
@@ -76,9 +86,11 @@ def merge_pair(godot_bd: dict, onegame_bd: dict) -> dict:
         "publishable": publishable,
         "blockers": blockers,
         "notes": [
+            "This file is a host diagnostic, not a dual-engine ranking or paper table.",
             "Harbor reward/Overall is not a comparison column.",
-            "V/A and formula Overall are unpublished (slideshow vs x11grab; ColorRect cap).",
-            "Instruction.md remains a Godot task; 1Game arm needs a separate brief.",
+            "V/A, formula Overall, and D3 are unpublished (slideshow vs x11grab; ColorRect; max agg).",
+            "M3/M4/D2/D4/D5 remain noisy: same rubric, different generation briefs.",
+            "Instruction.md remains a Godot task; 1Game arm uses keepsake-1game-brief.md.",
             "BUILD is a launch gate, not isomorphic compiler quality.",
             media_note,
             "mouse_click/key_press cost +2 1Game logic frames vs Godot same-frame xdotool.",
@@ -89,12 +101,13 @@ def merge_pair(godot_bd: dict, onegame_bd: dict) -> dict:
             "godot": godot_bd.get("build_ok"),
             "1game": onegame_bd.get("build_ok"),
         },
-        "weak_comparable": weak,
+        "diagnostic_columns": diagnostic,
         "visual_contaminated": contaminated,
+        "unpublished_ids": unpublished_ids,
         "unpublished": {
             "godot_reward": godot_bd.get("reward"),
             "1game_reward": onegame_bd.get("reward"),
-            "reason": "formula Overall includes V/A; 1Game publishable_overall is false",
+            "reason": "formula Overall includes V/A; do not cite as engine quality",
         },
     }
 
@@ -102,7 +115,7 @@ def merge_pair(godot_bd: dict, onegame_bd: dict) -> dict:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m gamecraft_bench.verifier.compare",
-        description="Merge two host verifier output dirs into a diagnostic table.",
+        description="Merge two host verifier dirs into a diagnostic JSON (not a ranking).",
     )
     parser.add_argument("--godot", type=Path, required=True,
                         help="Verifier output dir for --engine godot")
