@@ -172,6 +172,10 @@ def env_for_subprocess() -> dict[str, str]:
 
     The custom Harbor environment surfaces these into the agent / verifier
     process so test scripts can read them without any wiring.
+
+    Do not inject a default ``GAMECRAFT_BENCH_ENGINE``: Harbor ``test.sh``
+    never passes ``--engine``, and a host ``.env`` must not hijack Godot
+    trials.
     """
     e: dict[str, str] = {
         "GAME_PROJECT_PATH": GAME_PROJECT_PATH,

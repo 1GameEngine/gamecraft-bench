@@ -17,8 +17,10 @@ Side effects:
 - Writes ``<output>/ctrf.json`` — minimal CTRF report so existing pytest-based
   test runners can show this run alongside others.
 
-Exit status mirrors reward thresholding: ``0`` if reward >= ``--pass-threshold``
-(default 0.5), ``1`` otherwise. Hard internal failures still raise.
+Exit status: ``0`` if reward >= ``--pass-threshold`` (default 0.5), ``1``
+otherwise, ``2`` on host infra errors (missing 1gameplay). Infra failures
+do not write ``reward.txt``. Harbor ``test.sh`` is unchanged and still
+only used for Godot trials.
 """
 
 from __future__ import annotations
@@ -30,7 +32,7 @@ from pathlib import Path
 
 from .. import config as cfg
 from .judges import get_judge
-from .score import InfraError, ScoreResult, score_project
+from .score import InfraError, ScoreResult, detect_engine, score_project
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -38,8 +40,10 @@ def main(argv: list[str] | None = None) -> int:
         prog="python -m gamecraft_bench.verifier",
         description="Replay demo traces and score the recordings against a rubric.",
     )
-    parser.add_argument("--project", type=Path, required=True,
-                        help="Path to the Godot project directory.")
+    parser.add_argument(
+        "--project", type=Path, required=True,
+        help="Path to the game project directory (Godot or 1Game).",
+    )
     parser.add_argument("--rubric", type=Path, required=True,
                         help="Path to the rubric JSON file.")
     parser.add_argument("--output", type=Path, required=True,
@@ -81,18 +85,28 @@ def main(argv: list[str] | None = None) -> int:
 
     args.output.mkdir(parents=True, exist_ok=True)
 
-    judge = get_judge(backend=args.judge, model=args.judge_model)
-
     print(f"[verifier] project   = {args.project}", flush=True)
     print(f"[verifier] rubric    = {args.rubric}", flush=True)
     print(f"[verifier] output    = {args.output}", flush=True)
-    print(f"[verifier] judge     = {type(judge).__name__}(model={judge.model!r})",
-          flush=True)
     print(f"[verifier] godot_bin = {cfg.GODOT_BIN}", flush=True)
     print(f"[verifier] engine    = {args.engine}", flush=True)
     print(f"[verifier] 1gameplay = {cfg.ONEGAMEPLAY_BIN}", flush=True)
 
+    engine_kw = None if args.engine == "auto" else args.engine
     try:
+        # Infra (missing 1gameplay) must not depend on constructing a judge.
+        resolved = detect_engine(Path(args.project).resolve(), engine_kw)
+        if resolved == "1game" and (not cfg.ONEGAMEPLAY_BIN or not cfg.ONEGAME_BIN):
+            raise InfraError(
+                "1Game project requires 1game and 1gameplay on PATH "
+                "(set GAMECRAFT_BENCH_ONEGAME_BIN / "
+                "GAMECRAFT_BENCH_ONEGAMEPLAY_BIN); this is not BUILD=0"
+            )
+        judge = get_judge(backend=args.judge, model=args.judge_model)
+        print(
+            f"[verifier] judge     = {type(judge).__name__}(model={judge.model!r})",
+            flush=True,
+        )
         result = score_project(
             project_dir=args.project,
             rubric_path=args.rubric,
@@ -104,7 +118,7 @@ def main(argv: list[str] | None = None) -> int:
             frame_interval_seconds=args.frame_interval_seconds,
             max_demo_seconds=args.max_demo_seconds,
             max_demos=args.max_demos,
-            engine=None if args.engine == "auto" else args.engine,
+            engine=engine_kw,
         )
     except InfraError as exc:
         print(f"[verifier] infra error: {exc}", flush=True)
@@ -119,6 +133,7 @@ def main(argv: list[str] | None = None) -> int:
 
 def _print_summary(result: ScoreResult) -> None:
     print("", flush=True)
+    print(f"[verifier] engine        = {result.engine}", flush=True)
     print(f"[verifier] reward        = {result.reward:.3f}", flush=True)
     print(f"[verifier] build_ok      = {result.build_ok}", flush=True)
     print(f"[verifier] num_demos     = {len(result.demos)}", flush=True)
@@ -180,6 +195,7 @@ def _write_ctrf(output_dir: Path, result: ScoreResult) -> None:
             "extra": {
                 "reward": result.reward,
                 "formula": result.formula,
+                "engine": result.engine,
                 "judge": {
                     "name": result.judge_name,
                     "model": result.judge_model,

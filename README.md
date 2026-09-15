@@ -218,7 +218,7 @@ python -m gamecraft_bench.verifier \
   --judge stub
 ```
 
-`--engine auto` (default): `project.godot` wins; otherwise `src/game.tsx` / `1game.config.*` / `@1game/engine-bundle` selects 1Game. 1Game **ignores** the rubric `godot --headless` command and runs `1game build` + `1gameplay create` + `step --ms 16 --repeat 5` using `/usr/local/bin/1gameplay` and `NODE_PATH=/opt/1game/node_modules`.
+`--engine auto` (default): `project.godot` wins; otherwise `src/game.tsx` / `1game.config.*` / `@1game/engine-bundle` selects 1Game. 1Game **ignores** the rubric `godot --headless` command and runs `1game build` + `1gameplay create` + `step --ms 16 --repeat 5` using `/usr/local/bin/1gameplay` and `NODE_PATH=/opt/1game/node_modules` (see `GAMECRAFT_BENCH_ONEGAME_*` in `.env.example`). Missing `1gameplay` exits 2 and does **not** write `reward.txt`.
 
 This is a **pipeline** path. `StubJudge` scores are not engine rankings and must not be compared to the table above. Do not spawn generation Tasks from `skills/gamecraft-host-dual-run/SKILL.md` while it is HARD-locked.
 

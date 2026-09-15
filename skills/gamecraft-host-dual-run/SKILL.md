@@ -32,4 +32,10 @@ Godot stays serial (Xvfb / xdotool). 1Game napi screenshots may run beside Godot
 
 Missing `1gameplay` on a 1Game tree is **infra** (CLI exit 2, no `reward.txt`), not game-quality 0. Missing `godot` stays today's failure, not skip.
 
+Verifier unit tests (do not use default `pytest`; Harbor collection would miss these):
+
+```bash
+pytest tests/verifier -o python_files='test_*.py' -o testpaths=tests/verifier
+```
+
 When HARD is later replaced by 1+1-only: one slug, two engines, Godot globally serial. Still not 10+5.

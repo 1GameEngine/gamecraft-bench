@@ -129,23 +129,25 @@ def score_project(
     if max_demos is None:
         max_demos = int(rubric.get("max_demos", 10))
 
-    judge = judge or get_judge()
     errors: list[str] = []
 
     resolved_engine = detect_engine(project_dir, engine)
     replay_fn = replay_trace
     if resolved_engine == "1game":
         from .. import config as _cfg
-        if not _cfg.ONEGAMEPLAY_BIN:
+        if not _cfg.ONEGAMEPLAY_BIN or not _cfg.ONEGAME_BIN:
             raise InfraError(
-                "1Game project requires 1gameplay on PATH "
-                "(set GAMECRAFT_BENCH_ONEGAMEPLAY_BIN); this is not BUILD=0"
+                "1Game project requires 1game and 1gameplay on PATH "
+                "(set GAMECRAFT_BENCH_ONEGAME_BIN / "
+                "GAMECRAFT_BENCH_ONEGAMEPLAY_BIN); this is not BUILD=0"
             )
         from .replay_1game import replay_trace as replay_fn
         build_ok, build_log = _run_1game_build_check(output_dir, project_dir)
     else:
         # 1. Build check (Godot rubric cmd + host path rewriter).
         build_ok, build_log = _run_build_check(build_spec, output_dir, project_dir)
+
+    judge = judge or get_judge()
 
     # Default per-requirement = 0; populated by judge if BUILD passes.
     # Per-requirement `agg` controls how the demo scores are folded into a
