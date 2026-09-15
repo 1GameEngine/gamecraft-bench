@@ -218,9 +218,11 @@ python -m gamecraft_bench.verifier \
   --judge stub
 ```
 
-`--engine auto` (default) is **always Godot** (Harbor identity). 1Game is **only** `--engine 1game` (host). That path **ignores** the rubric `godot --headless` command and runs `1game build` + `1gameplay create` + `step --surface display --flush --ms 16 --repeat 5` using `/usr/local/bin/1gameplay` and `NODE_PATH=/opt/1game/node_modules`. Missing `1gameplay` on `--engine 1game` exits 2 and does **not** write `reward.txt`. 1Game PLAY is a **timeline slideshow** (≤0.5s `step` slices, `--at last` screenshots, concat by `tickedTimeMs`) — not a last-frame still loop and **not** equivalent to Godot x11grab. Godot judge hard-fail still writes `reward.txt` (Harbor). 1Game judge hard-fail skips it. Host 1Game judge copy says “2D game”; Harbor auto keeps “Godot 2D game”. Compare output is a **host diagnostic JSON** (`python -m gamecraft_bench.verifier.compare` into `$HOME/gamecraft-bench-jobs-compare/`, not the Harbor jobs root). It is **not** a paper ranking. Overall / V/A / D3 are unpublished; diagnostic columns are M3/M4/D2/D4/D5 only.
+Harbor canary jobs use `$HOME/gamecraft-bench-jobs`. Dual-engine **stub smoke** belongs under `$HOME/gamecraft-bench-jobs-compare/visualnovel-keepsake/stub/{godot,1game}` (sibling compare tree; never nest under Harbor jobs).
 
-This is a **pipeline** path. `StubJudge` scores are not engine rankings and must not be compared to the table above. Do not spawn generation Tasks from `skills/gamecraft-host-dual-run/SKILL.md` while it is HARD-locked.
+`--engine auto` (default) is **always Godot** (Harbor identity). 1Game is **only** `--engine 1game` (host). That path **ignores** the rubric `godot --headless` command and runs `1game build` + `1gameplay create` + `step --surface display --flush --ms 16 --repeat 5` using `/usr/local/bin/1gameplay` and `NODE_PATH=/opt/1game/node_modules`. Missing `1gameplay` on `--engine 1game` exits 2 and does **not** write `reward.txt`. 1Game PLAY is a **timeline slideshow** (≤0.5s `step` slices, `--at last` screenshots, concat by `tickedTimeMs`) — not a last-frame still loop and **not** equivalent to Godot x11grab. Godot judge hard-fail still writes `reward.txt` (Harbor). 1Game judge hard-fail skips it. Host 1Game judge copy says “2D game”; Harbor auto keeps “Godot 2D game”. Compare output is a **host diagnostic JSON** (`python -m gamecraft_bench.verifier.compare` into `$HOME/gamecraft-bench-jobs-compare/`, not the Harbor jobs root): a **blocker dump**, not a publishable green or paper ranking. Overall / V/A / D3 are unpublished; diagnostic columns are M3/M4/D2/D4/D5 only.
+
+This is a **pipeline** path. `StubJudge` scores are not engine rankings and must not be compared to the table above. Do not spawn generation Tasks from `skills/gamecraft-host-dual-run/SKILL.md` while it is **HARD-no-spawn** (locked until a follow-up unlocks **phase-1-generate**).
 
 ## Dashboard
 
@@ -237,7 +239,7 @@ Forward the port in VS Code (Ports panel), open `http://localhost:6090/`, then e
 - Click **Play** on a single trial, or
 - Tick the checkboxes on multiple trials and click **Compare** to open a grid view with one live noVNC iframe per game (auto-laid-out 2/3/4 columns). Each cell has its own Refresh / Stop button and is fully interactive.
 
-Architecture: a session pool of up to 8 X displays (`:300`–`:307`, disjoint from the verifier's `:99`–`:199` range), each backing a dedicated Xvfb + Godot + x11vnc trio. The FastAPI app serves noVNC's static files at `/novnc/` and bridges browser WebSocket frames to x11vnc TCP at `/ws/{sid}`. Closing the browser tab fires `navigator.sendBeacon` to free the slot.
+Architecture: a session pool of up to 8 X displays (`:300`–`:307`, **no flock**), each backing a dedicated Xvfb + Godot + x11vnc trio. Live verifier Xvfb is `:200`–`:500` (`GAMECRAFT_BENCH_XVFB_DISPLAY_START` / `END`) and **overlaps** dashboard `:300`–`:307` — serialize Godot Play vs verifier. (Older docs that claimed verifier `:99`–`:199` are false; `tools/screenshot.sh` still scans `:99`–`:250` with no lock and is not the verifier path.) The FastAPI app serves noVNC's static files at `/novnc/` and bridges browser WebSocket frames to x11vnc TCP at `/ws/{sid}`. Closing the browser tab fires `navigator.sendBeacon` to free the slot.
 
 ## Adding a task
 
