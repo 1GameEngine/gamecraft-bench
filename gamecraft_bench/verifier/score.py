@@ -34,6 +34,7 @@ import json
 import math
 import operator
 import random
+import shlex
 import shutil
 import subprocess
 import time
@@ -117,7 +118,7 @@ def score_project(
     errors: list[str] = []
 
     # 1. Build check.
-    build_ok, build_log = _run_build_check(build_spec, output_dir)
+    build_ok, build_log = _run_build_check(build_spec, output_dir, project_dir)
 
     # Default per-requirement = 0; populated by judge if BUILD passes.
     # Per-requirement `agg` controls how the demo scores are folded into a
@@ -317,24 +318,81 @@ def _aggregate(agg: str, per_demo: dict[str, float]) -> float:
     return max(vals)
 
 
-def _run_build_check(spec: dict, output_dir: Path) -> tuple[bool, str]:
-    """Run the build smoke command in a shell. Captures combined output."""
+# Harbor rubric contract path. Identity and rewrite needles use this
+# literal, never a possibly-overridden config.GAME_PROJECT_PATH.
+_HARBOR_GAME_PATH = "/workspace/game"
+_HARBOR_GAME_CHILD_PREFIX = _HARBOR_GAME_PATH + "/"
+_PATH_GLUED = "--path=" + _HARBOR_GAME_PATH
+_PATH_GLUED_CHILD_PREFIX = _PATH_GLUED + "/"
+_GAME_PROJECT_PATH_TOKENS = ("$GAME_PROJECT_PATH", "${GAME_PROJECT_PATH}")
+
+
+def _is_harbor_identity(project_dir: Path) -> bool:
+    return Path(project_dir).resolve() == Path(_HARBOR_GAME_PATH).resolve()
+
+
+def _rewrite_build_token(token: str, resolved_project: str) -> str:
+    if token in (_HARBOR_GAME_PATH, *_GAME_PROJECT_PATH_TOKENS):
+        return resolved_project
+    if token.startswith(_HARBOR_GAME_CHILD_PREFIX):
+        return resolved_project + token[len(_HARBOR_GAME_PATH):]
+    if token == _PATH_GLUED:
+        return "--path=" + resolved_project
+    if token.startswith(_PATH_GLUED_CHILD_PREFIX):
+        return "--path=" + resolved_project + token[len(_PATH_GLUED):]
+    return token
+
+
+def _rewrite_build_cmd(cmd: str, project_dir: Path) -> str:
+    resolved = str(Path(project_dir).resolve())
+    tokens = shlex.split(cmd, posix=True)
+    return shlex.join(_rewrite_build_token(t, resolved) for t in tokens)
+
+
+def _run_build_check(
+    spec: dict, output_dir: Path, project_dir: Path,
+) -> tuple[bool, str]:
+    """Run the build smoke command in a shell. Captures combined output.
+
+    Harbor rubrics hard-code ``/workspace/game``. When ``project_dir`` is
+    that path, the original ``cmd`` string is executed byte-identical.
+    Otherwise Harbor path tokens are rewritten to ``project_dir``. Empty
+    project dirs still run the command (no ``project.godot`` short-circuit).
+    """
     cmd = spec["cmd"]
     timeout = float(spec.get("timeout_seconds", 60))
     log_path = output_dir / "build.log"
+    project_dir = Path(project_dir).resolve()
+    run_cmd = cmd if _is_harbor_identity(project_dir) else _rewrite_build_cmd(
+        cmd, project_dir,
+    )
+    header = (
+        f"# cmd (raw): {cmd}\n"
+        f"# cmd (rewritten): {run_cmd}\n"
+        f"# cwd: {project_dir}\n"
+    )
     try:
         proc = subprocess.run(
-            cmd, shell=True, capture_output=True, text=True, timeout=timeout,
+            run_cmd,
+            shell=True,
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
         )
-        out = (proc.stdout or "") + (proc.stderr or "")
+        out = header + (proc.stdout or "") + (proc.stderr or "")
         log_path.write_text(out)
         return proc.returncode == 0, out
     except subprocess.TimeoutExpired as e:
-        msg = f"build_check timed out after {timeout}s\n{e.stdout or ''}{e.stderr or ''}"
+        msg = (
+            header
+            + f"build_check timed out after {timeout}s\n"
+            + f"{e.stdout or ''}{e.stderr or ''}"
+        )
         log_path.write_text(msg)
         return False, msg
     except OSError as e:
-        msg = f"build_check could not run: {e}"
+        msg = header + f"build_check could not run: {e}"
         log_path.write_text(msg)
         return False, msg
 
