@@ -13,6 +13,7 @@ from gamecraft_bench.verifier.score import (
     InfraError,
     _run_1game_build_check,
     detect_engine,
+    judge_hard_failed,
     score_project,
 )
 
@@ -93,6 +94,44 @@ def test_engine_godot_exclusive_on_tsx_tree(tmp_path: Path) -> None:
     assert isinstance(cmd, str) and "godot" in cmd
 
 
+def test_cli_judge_hard_fail_skips_reward(tmp_path: Path) -> None:
+    (tmp_path / "project.godot").write_text("[application]\n")
+    rubric_path = tmp_path / "rubric.json"
+    rubric_path.write_text(json.dumps({
+        "score_formula": "BUILD",
+        "build_check": {"id": "BUILD", "cmd": "true"},
+        "requirements": [],
+    }))
+    out = tmp_path / "out"
+    from gamecraft_bench.verifier.cli import main
+    from gamecraft_bench.verifier.score import ScoreResult
+
+    fake = ScoreResult(
+        reward=0.0,
+        build_ok=True,
+        build_log="",
+        formula="BUILD",
+        requirements=[],
+        demos=[],
+        judge_name="OpenAIJudge",
+        judge_model="gpt-5.5",
+        errors=["judge failed on 01_click: none of OPENAI_API_KEY set"],
+        engine="godot",
+    )
+    with patch("gamecraft_bench.verifier.cli.score_project", return_value=fake):
+        rc = main([
+            "--project", str(tmp_path),
+            "--rubric", str(rubric_path),
+            "--output", str(out),
+            "--judge", "stub",
+        ])
+    assert rc == 2
+    assert not (out / "reward.txt").exists()
+    assert (out / "ctrf.json").exists()
+    extra = json.loads((out / "ctrf.json").read_text())["results"]["extra"]
+    assert extra["comparable"] is False
+
+
 def test_cli_infra_exit_2_skips_reward(tmp_path: Path) -> None:
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "game.tsx").write_text("x")
@@ -113,7 +152,6 @@ def test_cli_infra_exit_2_skips_reward(tmp_path: Path) -> None:
         ])
     assert rc == 2
     assert not (out / "reward.txt").exists()
-
 
 
 def test_1game_build_never_invokes_godot(tmp_path: Path) -> None:
@@ -165,3 +203,8 @@ def test_missing_1gameplay_is_infra_not_build_zero(tmp_path: Path) -> None:
         else:
             raise AssertionError("expected InfraError")
     assert not (out / "reward.txt").exists()
+
+
+def test_judge_hard_failed_detects_prefix() -> None:
+    assert judge_hard_failed(["judge failed on d: missing key"])
+    assert not judge_hard_failed(["replay failed for d: boom"])

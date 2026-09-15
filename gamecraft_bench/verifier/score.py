@@ -231,6 +231,7 @@ def score_project(
                 video_path=art.mp4_path,
                 frame_paths=list(art.frame_paths),
                 requirements=req_specs,
+                engine=resolved_engine,
             )
             t0 = time.time()
             last_exc: JudgeError | None = None
@@ -587,6 +588,20 @@ def _sample_frames(
     )
 
 
+def judge_hard_failed(errors: list[str]) -> bool:
+    """True when a batch JudgeError was recorded (not a gameplay zero)."""
+    return any(e.startswith("judge failed") for e in errors)
+
+
+def _scores_are_comparable(result: ScoreResult) -> bool:
+    """Published engine tables need a real VLM and no judge hard-fail."""
+    if judge_hard_failed(result.errors):
+        return False
+    if result.judge_name == "StubJudge":
+        return False
+    return True
+
+
 def _write_artifacts(
     output_dir: Path,
     result: ScoreResult,
@@ -599,6 +614,7 @@ def _write_artifacts(
         "build_ok": result.build_ok,
         "engine": result.engine,
         "judge": {"name": result.judge_name, "model": result.judge_model},
+        "comparable": _scores_are_comparable(result),
         "variables": variables,
         "requirements": [
             {

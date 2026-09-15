@@ -5,6 +5,10 @@ Host path only: system ``1gameplay`` (not ``pnpm exec``), napi
 instantaneous ``pointer.*`` / ``keydown`` / ``keyup`` macros — never
 the multi-frame ``--click`` / ``keypress`` helpers.
 
+The mp4 is a **timeline slideshow**: ``frames list`` + screenshots at
+~0.5s engine-time cadence, then ffmpeg concat. Do **not** loop the
+last PNG for the whole trace (``-loop 1``).
+
 Godot ``replay.py`` is untouched. This module is imported lazily from
 ``score.py`` only after the project is classified as 1Game.
 """
@@ -20,6 +24,9 @@ from pathlib import Path
 
 from .. import config as cfg
 from .replay import ReplayError, ReplayResult
+
+# Judge-facing cadence. Not per logic frame — sparse seq screenshots.
+SCREENSHOT_CADENCE_SECONDS = 0.5
 
 _KEYCODES: dict[str, str] = {
     "ESCAPE": "Escape",
@@ -52,6 +59,7 @@ def replay_trace(
     settle_seconds: float = 1.5,
     log_dir: Path | None = None,
     max_replay_seconds: float = 90.0,
+    screenshot_cadence_seconds: float = SCREENSHOT_CADENCE_SECONDS,
 ) -> ReplayResult:
     """Run a single Godot-shaped JSON trace through 1gameplay.
 
@@ -92,40 +100,66 @@ def replay_trace(
     w, h = viewport
     env = _onegame_env()
     entry = _entry_path(project_dir)
+    cadence_s = max(0.1, float(screenshot_cadence_seconds))
+    rw, rh = record_size if record_size is not None else viewport
 
     with tempfile.TemporaryDirectory(prefix="gc1game-replay-", dir="/tmp") as tmp:
-        archive = Path(tmp) / "demo.1gamerecord"
+        tmp_path = Path(tmp)
+        archive = tmp_path / "demo.1gamerecord"
+        shots_dir = tmp_path / "shots"
+        shots_dir.mkdir()
+        play_log = (log_dir / "1gameplay.log") if log_dir else None
         _run_cli(
             [play, "create", "--entry", str(entry), "--out", str(archive)],
             cwd=project_dir,
             env=env,
             timeout=300,
-            log_path=(log_dir / "1gameplay.log") if log_dir else None,
+            log_path=play_log,
         )
         _apply_events(
             play, archive, events, fps=fps, duration_frames=replay_frames,
-            cwd=project_dir, env=env,
-            log_path=(log_dir / "1gameplay.log") if log_dir else None,
+            cwd=project_dir, env=env, log_path=play_log,
         )
-        png = Path(tmp) / "last.png"
-        _run_cli(
-            [
-                play, "frame", "screenshot", str(archive),
-                "--at", "last",
-                "--out", str(png),
-                "--width", str(w),
-                "--height", str(h),
-            ],
+        list_out = _run_cli(
+            [play, "frames", "list", str(archive)],
             cwd=project_dir,
             env=env,
             timeout=120,
-            log_path=(log_dir / "1gameplay.log") if log_dir else None,
+            log_path=play_log,
         )
-        if not png.is_file() or png.stat().st_size <= 0:
-            raise ReplayError("1gameplay frame screenshot produced an empty PNG")
-        rw, rh = record_size if record_size is not None else viewport
-        _encode_still_mp4(
-            png, output_mp4, duration_seconds=trace_seconds, fps=fps,
+        rows = parse_frames_list(list_out)
+        seqs = sample_timeline_seqs(
+            rows, interval_ms=int(round(cadence_s * 1000)),
+        )
+        pngs: list[Path] = []
+        for i, seq in enumerate(seqs):
+            png = shots_dir / f"shot_{i:04d}_seq{seq}.png"
+            _run_cli(
+                [
+                    play, "frame", "screenshot", str(archive),
+                    "--at", str(seq),
+                    "--out", str(png),
+                    "--width", str(w),
+                    "--height", str(h),
+                ],
+                cwd=project_dir,
+                env=env,
+                timeout=120,
+                log_path=play_log,
+            )
+            if not png.is_file() or png.stat().st_size <= 0:
+                raise ReplayError(
+                    f"1gameplay frame screenshot --at {seq} produced an empty PNG"
+                )
+            pngs.append(png)
+        durations = slide_durations(
+            seqs, rows, total_seconds=trace_seconds, cadence_seconds=cadence_s,
+        )
+        encode_slideshow_mp4(
+            pngs,
+            output_mp4,
+            durations_seconds=durations,
+            fps=fps,
             record_size=(rw, rh),
             log_path=(log_dir / "ffmpeg.log") if log_dir else None,
         )
@@ -137,6 +171,119 @@ def replay_trace(
         duration_seconds=trace_seconds,
         godot_returncode=0,
     )
+
+
+def parse_frames_list(stdout: str) -> list[tuple[int, int]]:
+    """Return ``(seq, tickedTimeMs)`` from ``1gameplay frames list`` JSON."""
+    try:
+        data = json.loads(stdout)
+    except json.JSONDecodeError as e:
+        raise ReplayError(f"frames list was not JSON: {e}") from e
+    result = data.get("result") if isinstance(data, dict) else None
+    rows = (result or {}).get("rows") if isinstance(result, dict) else None
+    if not isinstance(rows, list) or not rows:
+        raise ReplayError("frames list returned no rows")
+    out: list[tuple[int, int]] = []
+    for row in rows:
+        if isinstance(row, dict):
+            seq = int(row["seq"])
+            ticked = int(row.get("tickedTimeMs") or 0)
+        elif isinstance(row, (list, tuple)) and len(row) >= 3:
+            seq = int(row[0])
+            ticked = int(row[2])
+        else:
+            raise ReplayError(f"unrecognized frames list row: {row!r}")
+        out.append((seq, ticked))
+    out.sort(key=lambda item: item[0])
+    return out
+
+
+def sample_timeline_seqs(
+    rows: list[tuple[int, int]],
+    *,
+    interval_ms: int = 500,
+) -> list[int]:
+    """First frame, then ~interval_ms of engine time, then last — not every seq."""
+    if not rows:
+        raise ReplayError("cannot sample an empty frames list")
+    interval_ms = max(1, int(interval_ms))
+    picked: list[int] = [rows[0][0]]
+    last_t = rows[0][1]
+    for seq, ticked in rows[1:]:
+        if ticked - last_t >= interval_ms:
+            picked.append(seq)
+            last_t = ticked
+    last_seq = rows[-1][0]
+    if picked[-1] != last_seq:
+        picked.append(last_seq)
+    return picked
+
+
+def slide_durations(
+    seqs: list[int],
+    rows: list[tuple[int, int]],
+    *,
+    total_seconds: float,
+    cadence_seconds: float,
+) -> list[float]:
+    """Per-PNG hold times summing to ``total_seconds``."""
+    if not seqs:
+        raise ReplayError("no screenshot seqs")
+    t_by_seq = {seq: ticked for seq, ticked in rows}
+    times = [t_by_seq.get(seq, 0) / 1000.0 for seq in seqs]
+    n = len(seqs)
+    if n == 1:
+        return [max(total_seconds, cadence_seconds)]
+    durs: list[float] = []
+    for i in range(n - 1):
+        gap = times[i + 1] - times[i]
+        durs.append(max(cadence_seconds / 2.0, gap if gap > 0 else cadence_seconds))
+    used = sum(durs)
+    last = max(cadence_seconds / 2.0, total_seconds - used)
+    durs.append(last)
+    return durs
+
+
+def encode_slideshow_mp4(
+    pngs: list[Path],
+    output_mp4: Path,
+    *,
+    durations_seconds: list[float],
+    fps: int,
+    record_size: tuple[int, int],
+    log_path: Path | None,
+) -> None:
+    """Concat stills with per-slide duration. Never ``ffmpeg -loop 1``."""
+    if not pngs:
+        raise ReplayError("no PNGs to encode")
+    if len(pngs) != len(durations_seconds):
+        raise ReplayError("png count must match slide durations")
+    rw, rh = record_size
+    list_path = pngs[0].parent / "concat.txt"
+    lines: list[str] = []
+    for png, dur in zip(pngs, durations_seconds):
+        lines.append(f"file '{png.resolve()}'")
+        lines.append(f"duration {max(0.05, float(dur)):.3f}")
+    # concat demuxer needs the last file repeated.
+    lines.append(f"file '{pngs[-1].resolve()}'")
+    list_path.write_text("\n".join(lines) + "\n")
+    cmd = [
+        "ffmpeg", "-y", "-loglevel", "error",
+        "-f", "concat", "-safe", "0", "-i", str(list_path),
+        "-vf", f"scale={rw}:{rh}:flags=lanczos,fps={fps}",
+        "-pix_fmt", "yuv420p",
+        str(output_mp4),
+    ]
+    if any(part == "-loop" for part in cmd):
+        raise ReplayError("internal error: still-loop ffmpeg argv is forbidden")
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    except subprocess.TimeoutExpired as e:
+        raise ReplayError("ffmpeg timed out encoding 1Game mp4") from e
+    if log_path is not None:
+        log_path.write_text((proc.stdout or "") + (proc.stderr or ""))
+    if proc.returncode != 0:
+        raise ReplayError(f"ffmpeg failed: {(proc.stderr or proc.stdout)[-2000:]}")
 
 
 def _require_1gameplay() -> str:
@@ -224,6 +371,7 @@ def _apply_events(
             _run_cli(
                 [
                     play, "step", str(archive),
+                    "--surface", "display",
                     "--ms", "16", "--repeat", "1",
                     "--event", json.dumps(payload, separators=(",", ":")),
                 ],
@@ -248,7 +396,11 @@ def _tick(
     if ms <= 0:
         return
     _run_cli(
-        [play, "step", str(archive), "--ms", str(ms), "--repeat", "1"],
+        [
+            play, "step", str(archive),
+            "--surface", "display",
+            "--ms", str(ms), "--repeat", "1",
+        ],
         cwd=cwd, env=env, timeout=120, log_path=log_path,
     )
 
@@ -285,32 +437,3 @@ def _key(kind: str, ev: dict) -> dict:
     code = str(ev.get("keycode", ""))
     mapped = _KEYCODES.get(code.upper(), code)
     return {"type": kind, "data": {"code": mapped}}
-
-
-def _encode_still_mp4(
-    png: Path,
-    output_mp4: Path,
-    *,
-    duration_seconds: float,
-    fps: int,
-    record_size: tuple[int, int],
-    log_path: Path | None,
-) -> None:
-    rw, rh = record_size
-    cmd = [
-        "ffmpeg", "-y", "-loglevel", "error",
-        "-loop", "1", "-i", str(png),
-        "-t", f"{duration_seconds:.3f}",
-        "-r", str(fps),
-        "-vf", f"scale={rw}:{rh}:flags=lanczos",
-        "-pix_fmt", "yuv420p",
-        str(output_mp4),
-    ]
-    try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-    except subprocess.TimeoutExpired as e:
-        raise ReplayError("ffmpeg timed out encoding 1Game mp4") from e
-    if log_path is not None:
-        log_path.write_text((proc.stdout or "") + (proc.stderr or ""))
-    if proc.returncode != 0:
-        raise ReplayError(f"ffmpeg failed: {(proc.stderr or proc.stdout)[-2000:]}")

@@ -76,7 +76,7 @@ class KimiJudge(MultimodalJudge):
                 model=self.model,
                 max_tokens=_MAX_TOKENS,
                 messages=[
-                    {"role": "system", "content": _common.SYSTEM_INSTRUCTION},
+                    {"role": "system", "content": _common.system_instruction(engine=request.engine)},
                     {"role": "user", "content": content},
                 ],
             )

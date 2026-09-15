@@ -114,7 +114,8 @@ class OpenAIJudge(MultimodalJudge):
             {"type": "text",
              "text": (
                  f"The next {len(frames)} images are PNG frames sampled in "
-                 "temporal order from one playthrough of a Godot 2D game."
+                 "temporal order from one playthrough of a "
+                 f"{_common.playthrough_noun(engine=request.engine)}."
              )},
         ]
         for idx, fp in enumerate(frames, start=1):
@@ -133,7 +134,7 @@ class OpenAIJudge(MultimodalJudge):
                 model=self.model,
                 max_tokens=_MAX_TOKENS,
                 messages=[
-                    {"role": "system", "content": _common.SYSTEM_INSTRUCTION},
+                    {"role": "system", "content": _common.system_instruction(engine=request.engine)},
                     {"role": "user", "content": content},
                 ],
             )

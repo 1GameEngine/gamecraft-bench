@@ -18,9 +18,9 @@ Side effects:
   test runners can show this run alongside others.
 
 Exit status: ``0`` if reward >= ``--pass-threshold`` (default 0.5), ``1``
-otherwise, ``2`` on host infra errors (missing 1gameplay). Infra failures
-do not write ``reward.txt``. Harbor ``test.sh`` is unchanged and still
-only used for Godot trials.
+otherwise, ``2`` on host infra errors (missing 1gameplay, judge
+hard-failure). Infra failures do not write ``reward.txt``. Harbor
+``test.sh`` is unchanged: if reward.txt is missing it still writes 0.
 """
 
 from __future__ import annotations
@@ -32,7 +32,13 @@ from pathlib import Path
 
 from .. import config as cfg
 from .judges import get_judge
-from .score import InfraError, ScoreResult, detect_engine, score_project
+from .score import (
+    InfraError,
+    ScoreResult,
+    detect_engine,
+    judge_hard_failed,
+    score_project,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -125,10 +131,22 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     _print_summary(result)
+    if _judge_hard_failed(result):
+        print(
+            "[verifier] infra error: judge hard-failure is not a game-quality "
+            "0; not writing reward.txt (do not publish this run)",
+            flush=True,
+        )
+        _write_ctrf(args.output, result)
+        return 2
     _write_reward(args.output, result)
     _write_ctrf(args.output, result)
 
     return 0 if result.reward >= args.pass_threshold else 1
+
+
+def _judge_hard_failed(result: ScoreResult) -> bool:
+    return judge_hard_failed(result.errors)
 
 
 def _print_summary(result: ScoreResult) -> None:
@@ -201,6 +219,10 @@ def _write_ctrf(output_dir: Path, result: ScoreResult) -> None:
                     "model": result.judge_model,
                 },
                 "errors": result.errors,
+                "comparable": (
+                    result.judge_name != "StubJudge"
+                    and not judge_hard_failed(result.errors)
+                ),
             },
         }
     }

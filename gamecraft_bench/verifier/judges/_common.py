@@ -32,6 +32,19 @@ SYSTEM_INSTRUCTION = (
 )
 
 
+def system_instruction(*, engine: str = "godot") -> str:
+    """Harbor Godot keeps ``SYSTEM_INSTRUCTION``. Host 1Game is engine-neutral."""
+    if (engine or "godot").strip().lower() == "1game":
+        return SYSTEM_INSTRUCTION.replace("a Godot 2D game", "a 2D game")
+    return SYSTEM_INSTRUCTION
+
+
+def playthrough_noun(*, engine: str = "godot") -> str:
+    if (engine or "godot").strip().lower() == "1game":
+        return "2D game"
+    return "Godot 2D game"
+
+
 def build_user_prompt(requirements: list[RequirementSpec]) -> str:
     """Return the user-facing prompt for one demo's batch of requirements.
 
