@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from gamecraft_bench.config import env_for_subprocess
 from gamecraft_bench.verifier.score import (
     InfraError,
     _run_1game_build_check,
@@ -26,13 +27,31 @@ def test_project_godot_wins_over_tsx(tmp_path: Path) -> None:
     assert detect_engine(tmp_path, "1game") == "1game"
 
 
+def test_auto_never_selects_1game(tmp_path: Path) -> None:
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "game.tsx").write_text("x")
+    (tmp_path / "1game.config.ts").write_text("export default {}\n")
+    assert detect_engine(tmp_path) == "godot"
+    assert detect_engine(tmp_path, None) == "godot"
+    assert detect_engine(tmp_path, "") == "godot"
+    assert detect_engine(tmp_path, "auto") == "godot"
+    assert detect_engine(tmp_path, "1game") == "1game"
+
+
+def test_detect_engine_ignores_environ(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("GAMECRAFT_BENCH_ENGINE", "1game")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "game.tsx").write_text("x")
+    assert detect_engine(tmp_path) == "godot"
+
+
 def test_empty_tree_is_godot(tmp_path: Path) -> None:
     assert detect_engine(tmp_path) == "godot"
 
 
-def test_config_without_tsx_is_1game(tmp_path: Path) -> None:
+def test_config_without_tsx_stays_godot_on_auto(tmp_path: Path) -> None:
     (tmp_path / "1game.config.ts").write_text("export default {}\n")
-    assert detect_engine(tmp_path) == "1game"
+    assert detect_engine(tmp_path) == "godot"
 
 
 def test_godot_tree_does_not_require_1gameplay(tmp_path: Path) -> None:
@@ -94,7 +113,7 @@ def test_engine_godot_exclusive_on_tsx_tree(tmp_path: Path) -> None:
     assert isinstance(cmd, str) and "godot" in cmd
 
 
-def test_cli_judge_hard_fail_skips_reward(tmp_path: Path) -> None:
+def test_cli_godot_judge_hard_fail_writes_reward(tmp_path: Path) -> None:
     (tmp_path / "project.godot").write_text("[application]\n")
     rubric_path = tmp_path / "rubric.json"
     rubric_path.write_text(json.dumps({
@@ -125,11 +144,48 @@ def test_cli_judge_hard_fail_skips_reward(tmp_path: Path) -> None:
             "--output", str(out),
             "--judge", "stub",
         ])
-    assert rc == 2
-    assert not (out / "reward.txt").exists()
-    assert (out / "ctrf.json").exists()
+    assert rc == 1
+    assert (out / "reward.txt").exists()
     extra = json.loads((out / "ctrf.json").read_text())["results"]["extra"]
     assert extra["comparable"] is False
+
+
+def test_cli_1game_judge_hard_fail_skips_reward(tmp_path: Path) -> None:
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "game.tsx").write_text("x")
+    rubric_path = tmp_path / "rubric.json"
+    rubric_path.write_text(json.dumps({
+        "score_formula": "BUILD",
+        "build_check": {"id": "BUILD", "cmd": "true"},
+        "requirements": [],
+    }))
+    out = tmp_path / "out"
+    from gamecraft_bench.verifier.cli import main
+    from gamecraft_bench.verifier.score import ScoreResult
+
+    fake = ScoreResult(
+        reward=0.0,
+        build_ok=True,
+        build_log="",
+        formula="BUILD",
+        requirements=[],
+        demos=[],
+        judge_name="OpenAIJudge",
+        judge_model="gpt-5.5",
+        errors=["judge failed on 01_click: none of OPENAI_API_KEY set"],
+        engine="1game",
+    )
+    with patch("gamecraft_bench.verifier.cli.score_project", return_value=fake), \
+         patch("gamecraft_bench.verifier.cli.detect_engine", return_value="1game"):
+        rc = main([
+            "--project", str(tmp_path),
+            "--rubric", str(rubric_path),
+            "--output", str(out),
+            "--judge", "stub",
+            "--engine", "1game",
+        ])
+    assert rc == 2
+    assert not (out / "reward.txt").exists()
 
 
 def test_cli_infra_exit_2_skips_reward(tmp_path: Path) -> None:
@@ -149,6 +205,7 @@ def test_cli_infra_exit_2_skips_reward(tmp_path: Path) -> None:
             "--rubric", str(rubric_path),
             "--output", str(out),
             "--judge", "stub",
+            "--engine", "1game",
         ])
     assert rc == 2
     assert not (out / "reward.txt").exists()
@@ -166,6 +223,12 @@ def test_1game_build_never_invokes_godot(tmp_path: Path) -> None:
         ok, log = _run_1game_build_check(out, project)
     assert ok
     assert "godot" not in log.lower() or "skipped rubric godot" in log
+    joined = " ".join(
+        " ".join(args[0]) if isinstance(args[0], list) else str(args[0])
+        for args, _ in mock_run.call_args_list
+    )
+    assert "--surface display" in joined or "--surface" in joined
+    assert "--flush" in joined
     for args, _kwargs in mock_run.call_args_list:
         argv = args[0]
         assert argv[0] != "godot"
@@ -197,6 +260,7 @@ def test_missing_1gameplay_is_infra_not_build_zero(tmp_path: Path) -> None:
                 rubric_path=rubric_path,
                 output_dir=out,
                 judge=StubJudge(),
+                engine="1game",
             )
         except InfraError as exc:
             assert "1gameplay" in str(exc).lower()
@@ -208,3 +272,9 @@ def test_missing_1gameplay_is_infra_not_build_zero(tmp_path: Path) -> None:
 def test_judge_hard_failed_detects_prefix() -> None:
     assert judge_hard_failed(["judge failed on d: missing key"])
     assert not judge_hard_failed(["replay failed for d: boom"])
+
+
+def test_env_for_subprocess_omits_engine() -> None:
+    env = env_for_subprocess()
+    assert "GAMECRAFT_BENCH_ENGINE" not in env
+    assert "engine" not in {k.lower() for k in env if "ENGINE" in k}

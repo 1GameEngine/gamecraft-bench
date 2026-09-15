@@ -166,15 +166,26 @@ def _extract_json_object(text: str) -> str | None:
 
 
 def require_env(*candidates: str) -> str:
-    """Return the first non-empty env var among ``candidates``.
+    """Return the first non-empty, non-placeholder env var among ``candidates``.
 
     Raises ``KeyError`` (with a list of names tried) if none set. Backends
     catch this and convert to ``JudgeError``."""
     for name in candidates:
         v = os.environ.get(name)
-        if v:
+        if v and not is_placeholder_secret(v):
             return v
     raise KeyError(f"none of {candidates} set in environment")
+
+
+def is_placeholder_secret(value: str) -> bool:
+    s = (value or "").strip().lower()
+    if not s:
+        return True
+    return (
+        s.startswith("your_")
+        or s.endswith("_here")
+        or s in {"changeme", "todo", "xxx", "placeholder"}
+    )
 
 
 def get_env(name: str, default: str | None = None) -> str | None:

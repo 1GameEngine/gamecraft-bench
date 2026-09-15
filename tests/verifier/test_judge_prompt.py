@@ -11,6 +11,12 @@ from gamecraft_bench.verifier.judges import _common
 from gamecraft_bench.verifier.judges.base import JudgeRequest, RequirementSpec
 
 
+def test_placeholder_secrets_rejected() -> None:
+    assert _common.is_placeholder_secret("your_openai_api_key_here")
+    assert _common.is_placeholder_secret("changeme")
+    assert not _common.is_placeholder_secret("sk-real-token-value")
+
+
 def test_godot_default_keeps_godot_copy() -> None:
     text = _common.system_instruction()
     assert "Godot 2D game" in text

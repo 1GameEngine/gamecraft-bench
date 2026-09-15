@@ -38,6 +38,7 @@ from .score import (
     detect_engine,
     judge_hard_failed,
     score_project,
+    scores_are_comparable,
 )
 
 
@@ -84,8 +85,8 @@ def main(argv: list[str] | None = None) -> int:
         "--engine",
         choices=("auto", "godot", "1game"),
         default="auto",
-        help="Runtime selection. Default auto: project.godot wins, else "
-             "src/game.tsx / 1game.config / engine-bundle. Exclusive when set.",
+        help="Runtime. auto/godot: always Godot (Harbor identity). "
+             "1Game only with exclusive --engine 1game. Does not read env.",
     )
     args = parser.parse_args(argv)
 
@@ -131,10 +132,12 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     _print_summary(result)
-    if _judge_hard_failed(result):
+    # Host 1Game: skip reward so judge/infra fail is not a published 0.
+    # Harbor (auto/godot): write reward.txt; test.sh may also fill 0.
+    if _judge_hard_failed(result) and result.engine == "1game":
         print(
             "[verifier] infra error: judge hard-failure is not a game-quality "
-            "0; not writing reward.txt (do not publish this run)",
+            "0; not writing reward.txt (do not publish this 1Game run)",
             flush=True,
         )
         _write_ctrf(args.output, result)
@@ -219,10 +222,7 @@ def _write_ctrf(output_dir: Path, result: ScoreResult) -> None:
                     "model": result.judge_model,
                 },
                 "errors": result.errors,
-                "comparable": (
-                    result.judge_name != "StubJudge"
-                    and not judge_hard_failed(result.errors)
-                ),
+                "comparable": scores_are_comparable(result),
             },
         }
     }

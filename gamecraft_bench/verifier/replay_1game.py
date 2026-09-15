@@ -128,6 +128,7 @@ def replay_trace(
             play, archive, events, fps=fps, duration_frames=replay_frames,
             cwd=project_dir, env=env, log_path=play_log,
             on_step=shots.after_step,
+            max_step_ms=int(round(cadence_s * 1000)),
         )
         shots.capture(force=True)
         # Audit only — pixel source is the in-step captures above.
@@ -139,10 +140,13 @@ def replay_trace(
             log_path=play_log,
         )
         pngs = shots.pngs
-        n = len(pngs)
-        durations = [max(cadence_s / 2.0, trace_seconds / n)] * n
-        leftover = trace_seconds - sum(durations[:-1])
-        durations[-1] = max(cadence_s / 2.0, leftover)
+        if not pngs:
+            raise ReplayError("1Game timeline captured no screenshots")
+        durations = slide_durations_from_ticks(
+            shots.times_ms,
+            total_seconds=trace_seconds,
+            cadence_seconds=cadence_s,
+        )
         keep = output_mp4.parent / "timeline"
         keep.mkdir(parents=True, exist_ok=True)
         kept: list[Path] = []
@@ -150,6 +154,15 @@ def replay_trace(
             dest = keep / png.name
             shutil.copy2(png, dest)
             kept.append(dest)
+        (keep / "meta.json").write_text(json.dumps({
+            "ticked_time_ms": shots.times_ms,
+            "durations_seconds": durations,
+            "viewport": [w, h],
+            "media": "slideshow",
+            "click_extra_logic_frames": (
+                "mouse_click/key_press each consume +2 1Game logic frames"
+            ),
+        }, indent=2))
         encode_slideshow_mp4(
             kept,
             output_mp4,
@@ -214,28 +227,24 @@ def sample_timeline_seqs(
     return picked
 
 
-def slide_durations(
-    seqs: list[int],
-    rows: list[tuple[int, int]],
+def slide_durations_from_ticks(
+    times_ms: list[int],
     *,
     total_seconds: float,
     cadence_seconds: float,
 ) -> list[float]:
-    """Per-PNG hold times summing to ``total_seconds``."""
-    if not seqs:
-        raise ReplayError("no screenshot seqs")
-    t_by_seq = {seq: ticked for seq, ticked in rows}
-    times = [t_by_seq.get(seq, 0) / 1000.0 for seq in seqs]
-    n = len(seqs)
+    """Hold each PNG until the next capture; last fills ``total_seconds``."""
+    if not times_ms:
+        raise ReplayError("no timeline tick times")
+    n = len(times_ms)
     if n == 1:
         return [max(total_seconds, cadence_seconds)]
     durs: list[float] = []
     for i in range(n - 1):
-        gap = times[i + 1] - times[i]
-        durs.append(max(cadence_seconds / 2.0, gap if gap > 0 else cadence_seconds))
+        gap = (times_ms[i + 1] - times_ms[i]) / 1000.0
+        durs.append(max(0.05, gap if gap > 0 else cadence_seconds / 2.0))
     used = sum(durs)
-    last = max(cadence_seconds / 2.0, total_seconds - used)
-    durs.append(last)
+    durs.append(max(0.05, total_seconds - used))
     return durs
 
 
@@ -367,15 +376,16 @@ class _TimelineShots:
         self.log_path = log_path
         self.cadence_ms = max(1, cadence_ms)
         self.pngs: list[Path] = []
+        self.times_ms: list[int] = []
         self._last_shot_ms = -10**9
 
     def after_step(self, stdout: str, *, had_event: bool) -> None:
         ticked = _last_ticked_ms(stdout)
         if had_event or ticked - self._last_shot_ms >= self.cadence_ms:
-            self.capture()
+            self.capture(ticked_ms=ticked)
             self._last_shot_ms = ticked
 
-    def capture(self, *, force: bool = False) -> None:
+    def capture(self, *, force: bool = False, ticked_ms: int | None = None) -> None:
         del force
         png = self.shots_dir / f"shot_{len(self.pngs):04d}.png"
         w, h = self.viewport
@@ -392,6 +402,9 @@ class _TimelineShots:
         if not png.is_file() or png.stat().st_size <= 0:
             raise ReplayError("1gameplay frame screenshot produced an empty PNG")
         self.pngs.append(png)
+        if ticked_ms is None:
+            ticked_ms = self.times_ms[-1] if self.times_ms else 0
+        self.times_ms.append(int(ticked_ms))
 
 
 def _last_ticked_ms(stdout: str) -> int:
@@ -419,6 +432,7 @@ def _apply_events(
     env: dict[str, str],
     log_path: Path | None,
     on_step=None,
+    max_step_ms: int = 500,
 ) -> None:
     ordered = sorted(events, key=lambda ev: int(ev.get("frame", 0)))
     cursor = 0
@@ -429,6 +443,7 @@ def _apply_events(
             _tick(
                 play, archive, (frame - cursor) * ms_frame,
                 cwd, env, log_path, on_step=on_step, had_event=False,
+                max_step_ms=max_step_ms,
             )
             cursor = frame
         for payload in _event_payloads(ev):
@@ -449,6 +464,7 @@ def _apply_events(
         _tick(
             play, archive, (duration_frames - cursor) * ms_frame,
             cwd, env, log_path, on_step=on_step, had_event=False,
+            max_step_ms=max_step_ms,
         )
 
 
@@ -461,20 +477,24 @@ def _tick(
     log_path: Path | None,
     on_step=None,
     had_event: bool = False,
+    max_step_ms: int = 500,
 ) -> None:
-    if ms <= 0:
-        return
-    out = _run_cli(
-        [
-            play, "step", str(archive),
-            "--surface", "display",
-            "--flush",
-            "--ms", str(ms), "--repeat", "1",
-        ],
-        cwd=cwd, env=env, timeout=120, log_path=log_path,
-    )
-    if on_step is not None:
-        on_step(out, had_event=had_event)
+    remaining = int(ms)
+    chunk_cap = max(1, int(max_step_ms))
+    while remaining > 0:
+        chunk = min(remaining, chunk_cap)
+        out = _run_cli(
+            [
+                play, "step", str(archive),
+                "--surface", "display",
+                "--flush",
+                "--ms", str(chunk), "--repeat", "1",
+            ],
+            cwd=cwd, env=env, timeout=120, log_path=log_path,
+        )
+        if on_step is not None:
+            on_step(out, had_event=had_event)
+        remaining -= chunk
 
 
 def _event_payloads(ev: dict) -> list[dict]:

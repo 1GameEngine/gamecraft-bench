@@ -50,6 +50,17 @@ def test_parse_frames_list_array_rows() -> None:
     assert r1.sample_timeline_seqs(rows, interval_ms=500) == [3, 4]
 
 
+def test_slide_durations_follow_tick_gaps() -> None:
+    durs = r1.slide_durations_from_ticks(
+        [0, 500, 1000],
+        total_seconds=1.5,
+        cadence_seconds=0.5,
+    )
+    assert durs[0] == pytest.approx(0.5)
+    assert durs[1] == pytest.approx(0.5)
+    assert durs[2] == pytest.approx(0.5)
+
+
 def test_slideshow_ffmpeg_has_no_loop(tmp_path: Path) -> None:
     a = tmp_path / "a.png"
     b = tmp_path / "b.png"

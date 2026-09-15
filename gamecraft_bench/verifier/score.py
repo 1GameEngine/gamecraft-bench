@@ -321,38 +321,19 @@ def score_project(
 
 
 def detect_engine(project_dir: Path, engine: str | None = None) -> str:
-    """Filesystem probe. ``project.godot`` wins unless ``engine`` is exclusive."""
+    """Resolve runtime. ``auto`` / ``None`` / ``""`` are **always Godot**.
+
+    Harbor ``test.sh`` never passes ``--engine``. 1Game is host-only via
+    exclusive ``engine="1game"``. Do not read ``GAMECRAFT_BENCH_ENGINE``.
+    ``project_dir`` is unused for auto (kept so callers stay stable).
+    """
+    del project_dir
     requested = (engine or "auto").strip().lower()
     if requested in ("godot", "1game"):
         return requested
-    if requested not in ("", "auto"):
-        raise InfraError(f"unknown --engine {engine!r}")
-    root = Path(project_dir)
-    if (root / "project.godot").is_file():
+    if requested in ("", "auto"):
         return "godot"
-    if _looks_like_1game(root):
-        return "1game"
-    return "godot"
-
-
-def _looks_like_1game(project_dir: Path) -> bool:
-    if (project_dir / "src" / "game.tsx").is_file():
-        return True
-    if any(project_dir.glob("1game.config.*")):
-        return True
-    pkg = project_dir / "package.json"
-    if not pkg.is_file():
-        return False
-    try:
-        data = json.loads(pkg.read_text())
-    except json.JSONDecodeError:
-        return False
-    deps = {}
-    for key in ("dependencies", "devDependencies"):
-        block = data.get(key) or {}
-        if isinstance(block, dict):
-            deps.update(block)
-    return "@1game/engine-bundle" in deps
+    raise InfraError(f"unknown --engine {engine!r}")
 
 
 def _run_1game_build_check(
@@ -386,7 +367,11 @@ def _run_1game_build_check(
         steps = [
             [game_bin, "build"],
             [play_bin, "create", "--entry", "src/game.tsx", "--out", str(archive)],
-            [play_bin, "step", str(archive), "--ms", "16", "--repeat", "5"],
+            [
+                play_bin, "step", str(archive),
+                "--surface", "display", "--flush",
+                "--ms", "16", "--repeat", "5",
+            ],
         ]
         ok = True
         for argv in steps:
@@ -593,11 +578,18 @@ def judge_hard_failed(errors: list[str]) -> bool:
     return any(e.startswith("judge failed") for e in errors)
 
 
-def _scores_are_comparable(result: ScoreResult) -> bool:
-    """Published engine tables need a real VLM and no judge hard-fail."""
+def scores_are_comparable(result: ScoreResult) -> bool:
+    """Per-run gate. Cross-engine tables also need merge_compare checks."""
     if judge_hard_failed(result.errors):
         return False
     if result.judge_name == "StubJudge":
+        return False
+    if not result.demos:
+        return False
+    if any(
+        not d.mp4_path.is_file() or d.mp4_path.stat().st_size <= 0
+        for d in result.demos
+    ):
         return False
     return True
 
@@ -613,8 +605,10 @@ def _write_artifacts(
         "formula": result.formula,
         "build_ok": result.build_ok,
         "engine": result.engine,
+        "media": "slideshow" if result.engine == "1game" else "x11grab",
+        "publishable_overall": False if result.engine == "1game" else None,
         "judge": {"name": result.judge_name, "model": result.judge_model},
-        "comparable": _scores_are_comparable(result),
+        "comparable": scores_are_comparable(result),
         "variables": variables,
         "requirements": [
             {
