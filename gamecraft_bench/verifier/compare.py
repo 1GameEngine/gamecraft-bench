@@ -135,7 +135,12 @@ def main(argv: list[str] | None = None) -> int:
     table = merge_pair(load_breakdown(args.godot), load_breakdown(args.onegame))
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(table, indent=2) + "\n")
-    print(json.dumps({"publishable": table["publishable"], "blockers": table["blockers"]}))
+    print(json.dumps({
+        "publishable": table["publishable"],
+        "success_gate": False,
+        "cite_columns": False,
+        "blockers": table["blockers"],
+    }))
     return 0
 
 

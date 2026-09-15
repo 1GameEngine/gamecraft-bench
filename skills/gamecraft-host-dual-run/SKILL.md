@@ -70,17 +70,19 @@ Reinstall non-editable after editing `gamecraft_bench/`. Never `pnpm exec 1gamep
 unset PYTHONPATH
 cd "$HOME"
 COMPARE="$HOME/gamecraft-bench-jobs-compare"
+PROJ="$COMPARE/visualnovel-keepsake/projects"
 STUB="$COMPARE/visualnovel-keepsake/stub"
 RUBRIC="/workspace/tasks/visualnovel-keepsake/tests/rubric.json"
 
+# --project is the game tree; --output is verifier logs. Never the same directory.
 python -m gamecraft_bench.verifier \
-  --project "$COMPARE/visualnovel-keepsake/stub/godot" \
+  --project "$PROJ/godot" \
   --rubric "$RUBRIC" \
   --output "$STUB/godot" \
   --engine godot --judge stub
 
 python -m gamecraft_bench.verifier \
-  --project "$COMPARE/visualnovel-keepsake/stub/1game" \
+  --project "$PROJ/1game" \
   --rubric "$RUBRIC" \
   --output "$STUB/1game" \
   --engine 1game --judge stub

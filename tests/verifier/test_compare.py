@@ -75,9 +75,11 @@ def test_merge_rejects_auto_engine_on_1game_arm() -> None:
     assert table["publishable"] is False
 
 
-def test_keepsake_1game_brief_names_m3_m4() -> None:
+def test_keepsake_prompts_omit_rubric_ids() -> None:
     root = Path(__file__).resolve().parents[2]
     skill = root / "skills/gamecraft-host-dual-run"
+    assert (skill / "appendix-godot.md").is_file()
+    assert not (skill / "plumbing.md").is_file()
     text = (skill / "keepsake-1game-brief.md").read_text()
     assert "(M3)" not in text
     assert "(M4)" not in text
@@ -95,6 +97,10 @@ def test_keepsake_1game_brief_names_m3_m4() -> None:
     main_text = main_md.read_text()
     assert "M3" not in main_text
     assert "M4" not in main_text
+    skill_md = (skill / "SKILL.md").read_text()
+    assert "HARD-no-spawn" in skill_md
+    assert "phase-1-generate" in skill_md
+    assert "1+1-only" in skill_md  # mentioned only as forbidden name
 
 
 def test_compare_main_exits_zero_when_not_publishable(tmp_path: Path) -> None:
