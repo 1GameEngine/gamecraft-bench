@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import inspect
+import json
 import shutil
 import subprocess
 import sys
@@ -19,8 +20,6 @@ from gamecraft_bench.verifier import replay_1game as r1
 
 def test_encode_still_mp4_removed() -> None:
     assert not hasattr(r1, "_encode_still_mp4")
-    replay_src = inspect.getsource(r1.replay_trace)
-    assert "--at\", \"last\"" not in replay_src
     encode_src = inspect.getsource(r1.encode_slideshow_mp4)
     assert '"-f", "concat"' in encode_src
 
@@ -85,32 +84,37 @@ def test_slideshow_ffmpeg_has_no_loop(tmp_path: Path) -> None:
     assert hashes[0] != hashes[-1]
 
 
-def test_replay_trace_mock_uses_seq_screenshots_not_last_loop(
+def test_replay_trace_mock_uses_multiple_last_shots_not_still_loop(
     tmp_path: Path,
 ) -> None:
     proj = tmp_path / "g"
     (proj / "src").mkdir(parents=True)
     (proj / "src" / "game.tsx").write_text("x")
     trace = tmp_path / "t.json"
-    trace.write_text('{"duration_frames": 45, "events": []}')
+    trace.write_text(
+        '{"duration_frames": 45, "events": ['
+        '{"frame": 20, "type": "mouse_click", "x": 10, "y": 10}'
+        "]}"
+    )
     out = tmp_path / "out.mp4"
     calls: list[list[str]] = []
+    state = {"t": 0, "shots": 0}
 
     def fake_run(argv, **kwargs):
         calls.append(list(argv))
-        if argv[1] == "frames" and argv[2] == "list":
-            return (
-                '{"result":{"rows":['
-                '{"seq":0,"tickedTimeMs":0},'
-                '{"seq":5,"tickedTimeMs":500},'
-                '{"seq":10,"tickedTimeMs":1000}'
-                "]}}"
-            )
+        if argv[1] == "step":
+            state["t"] += 400
+            return json.dumps({
+                "meta": {"statePointer": {"lastTickedTimeMs": state["t"]}},
+            })
         if argv[1] == "frame" and argv[2] == "screenshot":
             dest = Path(argv[argv.index("--out") + 1])
-            color = "0x2563eb" if argv[argv.index("--at") + 1] == "0" else "0xf97316"
+            color = "0x2563eb" if state["shots"] == 0 else "0xf97316"
+            state["shots"] += 1
             _color_png(dest, color)
             return ""
+        if argv[1] == "frames":
+            return '{"result":{"rows":[{"seq":0,"tickedTimeMs":0}]}}'
         return ""
 
     with patch.object(r1, "_require_1gameplay", return_value="1gameplay"), \
@@ -123,10 +127,9 @@ def test_replay_trace_mock_uses_seq_screenshots_not_last_loop(
         )
     assert result.output_mp4 == out
     shot_calls = [c for c in calls if c[1:3] == ["frame", "screenshot"]]
-    assert shot_calls
+    assert len(shot_calls) >= 2
     ats = [c[c.index("--at") + 1] for c in shot_calls]
-    assert "last" not in ats
-    assert ats == ["0", "5", "10"]
+    assert ats == ["last"] * len(ats)
     assert out.is_file() and out.stat().st_size > 0
 
 

@@ -5,9 +5,11 @@ Host path only: system ``1gameplay`` (not ``pnpm exec``), napi
 instantaneous ``pointer.*`` / ``keydown`` / ``keyup`` macros — never
 the multi-frame ``--click`` / ``keypress`` helpers.
 
-The mp4 is a **timeline slideshow**: ``frames list`` + screenshots at
-~0.5s engine-time cadence, then ffmpeg concat. Do **not** loop the
-last PNG for the whole trace (``-loop 1``).
+The mp4 is a **timeline slideshow**: screenshots taken during ``step``
+at ~0.5s engine-time cadence (and on input events), then ffmpeg concat.
+Historical ``frame screenshot --at <seq>`` is not used for pixels —
+1Game 1.21.0 seeks store correctly but paints the same bitmap. Do
+**not** loop a single last PNG for the whole trace (``-loop 1``).
 
 Godot ``replay.py`` is untouched. This module is imported lazily from
 ``score.py`` only after the project is classified as 1Game.
@@ -116,47 +118,40 @@ def replay_trace(
             timeout=300,
             log_path=play_log,
         )
+        shots = _TimelineShots(
+            play=play, archive=archive, shots_dir=shots_dir,
+            viewport=(w, h), cwd=project_dir, env=env, log_path=play_log,
+            cadence_ms=int(round(cadence_s * 1000)),
+        )
+        shots.capture()
         _apply_events(
             play, archive, events, fps=fps, duration_frames=replay_frames,
             cwd=project_dir, env=env, log_path=play_log,
+            on_step=shots.after_step,
         )
-        list_out = _run_cli(
+        shots.capture(force=True)
+        # Audit only — pixel source is the in-step captures above.
+        _run_cli(
             [play, "frames", "list", str(archive)],
             cwd=project_dir,
             env=env,
             timeout=120,
             log_path=play_log,
         )
-        rows = parse_frames_list(list_out)
-        seqs = sample_timeline_seqs(
-            rows, interval_ms=int(round(cadence_s * 1000)),
-        )
-        pngs: list[Path] = []
-        for i, seq in enumerate(seqs):
-            png = shots_dir / f"shot_{i:04d}_seq{seq}.png"
-            _run_cli(
-                [
-                    play, "frame", "screenshot", str(archive),
-                    "--at", str(seq),
-                    "--out", str(png),
-                    "--width", str(w),
-                    "--height", str(h),
-                ],
-                cwd=project_dir,
-                env=env,
-                timeout=120,
-                log_path=play_log,
-            )
-            if not png.is_file() or png.stat().st_size <= 0:
-                raise ReplayError(
-                    f"1gameplay frame screenshot --at {seq} produced an empty PNG"
-                )
-            pngs.append(png)
-        durations = slide_durations(
-            seqs, rows, total_seconds=trace_seconds, cadence_seconds=cadence_s,
-        )
+        pngs = shots.pngs
+        n = len(pngs)
+        durations = [max(cadence_s / 2.0, trace_seconds / n)] * n
+        leftover = trace_seconds - sum(durations[:-1])
+        durations[-1] = max(cadence_s / 2.0, leftover)
+        keep = output_mp4.parent / "timeline"
+        keep.mkdir(parents=True, exist_ok=True)
+        kept: list[Path] = []
+        for png in pngs:
+            dest = keep / png.name
+            shutil.copy2(png, dest)
+            kept.append(dest)
         encode_slideshow_mp4(
-            pngs,
+            kept,
             output_mp4,
             durations_seconds=durations,
             fps=fps,
@@ -348,6 +343,71 @@ def _ms_per_frame(fps: int) -> int:
     return max(1, int(round(1000 / fps)))
 
 
+class _TimelineShots:
+    """Grab ``frame screenshot --at last`` at cadence / after input events."""
+
+    def __init__(
+        self,
+        *,
+        play: str,
+        archive: Path,
+        shots_dir: Path,
+        viewport: tuple[int, int],
+        cwd: Path,
+        env: dict[str, str],
+        log_path: Path | None,
+        cadence_ms: int,
+    ) -> None:
+        self.play = play
+        self.archive = archive
+        self.shots_dir = shots_dir
+        self.viewport = viewport
+        self.cwd = cwd
+        self.env = env
+        self.log_path = log_path
+        self.cadence_ms = max(1, cadence_ms)
+        self.pngs: list[Path] = []
+        self._last_shot_ms = -10**9
+
+    def after_step(self, stdout: str, *, had_event: bool) -> None:
+        ticked = _last_ticked_ms(stdout)
+        if had_event or ticked - self._last_shot_ms >= self.cadence_ms:
+            self.capture()
+            self._last_shot_ms = ticked
+
+    def capture(self, *, force: bool = False) -> None:
+        del force
+        png = self.shots_dir / f"shot_{len(self.pngs):04d}.png"
+        w, h = self.viewport
+        _run_cli(
+            [
+                self.play, "frame", "screenshot", str(self.archive),
+                "--at", "last",
+                "--out", str(png),
+                "--width", str(w),
+                "--height", str(h),
+            ],
+            cwd=self.cwd, env=self.env, timeout=120, log_path=self.log_path,
+        )
+        if not png.is_file() or png.stat().st_size <= 0:
+            raise ReplayError("1gameplay frame screenshot produced an empty PNG")
+        self.pngs.append(png)
+
+
+def _last_ticked_ms(stdout: str) -> int:
+    try:
+        data = json.loads(stdout)
+    except json.JSONDecodeError:
+        return 0
+    pointer = (
+        data.get("meta", {}).get("statePointer")
+        if isinstance(data, dict) else None
+    )
+    if not isinstance(pointer, dict):
+        return 0
+    return int(pointer.get("lastTickedTimeMs") or 0)
+
+
 def _apply_events(
     play: str,
     archive: Path,
@@ -358,6 +418,7 @@ def _apply_events(
     cwd: Path,
     env: dict[str, str],
     log_path: Path | None,
+    on_step=None,
 ) -> None:
     ordered = sorted(events, key=lambda ev: int(ev.get("frame", 0)))
     cursor = 0
@@ -365,23 +426,29 @@ def _apply_events(
     for ev in ordered:
         frame = int(ev.get("frame", 0))
         if frame > cursor:
-            _tick(play, archive, (frame - cursor) * ms_frame, cwd, env, log_path)
+            _tick(
+                play, archive, (frame - cursor) * ms_frame,
+                cwd, env, log_path, on_step=on_step, had_event=False,
+            )
             cursor = frame
         for payload in _event_payloads(ev):
-            _run_cli(
+            out = _run_cli(
                 [
                     play, "step", str(archive),
                     "--surface", "display",
+                    "--flush",
                     "--ms", "16", "--repeat", "1",
                     "--event", json.dumps(payload, separators=(",", ":")),
                 ],
                 cwd=cwd, env=env, timeout=120, log_path=log_path,
             )
+            if on_step is not None:
+                on_step(out, had_event=True)
             cursor += 1
     if duration_frames > cursor:
         _tick(
             play, archive, (duration_frames - cursor) * ms_frame,
-            cwd, env, log_path,
+            cwd, env, log_path, on_step=on_step, had_event=False,
         )
 
 
@@ -392,17 +459,22 @@ def _tick(
     cwd: Path,
     env: dict[str, str],
     log_path: Path | None,
+    on_step=None,
+    had_event: bool = False,
 ) -> None:
     if ms <= 0:
         return
-    _run_cli(
+    out = _run_cli(
         [
             play, "step", str(archive),
             "--surface", "display",
+            "--flush",
             "--ms", str(ms), "--repeat", "1",
         ],
         cwd=cwd, env=env, timeout=120, log_path=log_path,
     )
+    if on_step is not None:
+        on_step(out, had_event=had_event)
 
 
 def _event_payloads(ev: dict) -> list[dict]:

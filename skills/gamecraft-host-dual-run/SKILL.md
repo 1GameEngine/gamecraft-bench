@@ -8,7 +8,7 @@ Harbor 140-task Godot evaluation is unchanged. This skill does **not** replace `
 
 - **A-merge-green:** Godot BUILD `--project` rewriter (already landed).
 - **B-fixture-green:** `tests/fixtures/1game_minimal/` produces a non-empty mp4 + `breakdown.json` via host verifier.
-- **timeline-green:** 1Game replay uses `frames list` + seq screenshots at ~0.5s engine-time cadence + ffmpeg concat. `_encode_still_mp4` / sole `--at last` + `-loop 1` is forbidden. Fixture pixel-diff of the slideshow is evidence; it is **not** a VLM ranking.
+- **timeline-green:** 1Game replay captures ``frame screenshot --at last`` *during* ``step`` at ~0.5s engine-time cadence and on input events, then ffmpeg concat. A single end-of-trace still looped with `-loop 1` is forbidden. Fixture pixel-diff of the slideshow is evidence; it is **not** a VLM ranking. Historical `--at <seq>` is not used for pixels (1.21.0 store seek ≠ paint).
 - **dual-engine-path-green:** two *different* host pipelines (Godot sokoban oracle copy **and** this 1Game fixture). Does **not** unlock Tasks.
 - **score-green:** real VLM (`judge.name != StubJudge`) **and** no `judge failed` hard-error **and** timeline-green on the 1Game side. Stub `reward` / `gpt-5.5` with StubJudge is noise. Judge hard-failure must **not** be published as game-quality 0.
 
