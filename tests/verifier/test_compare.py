@@ -79,28 +79,37 @@ def test_keepsake_prompts_omit_rubric_ids() -> None:
     root = Path(__file__).resolve().parents[2]
     skill = root / "skills/gamecraft-host-dual-run"
     assert (skill / "appendix-godot.md").is_file()
+    assert (skill / "score-excerpt.md").is_file()
     assert not (skill / "plumbing.md").is_file()
-    text = (skill / "keepsake-1game-brief.md").read_text()
-    assert "(M3)" not in text
-    assert "(M4)" not in text
-    assert "M3)" not in text
-    assert "M4)" not in text
-    lower = text.lower()
-    assert "memory board" in lower or "journal" in lower
+    env = (skill / "keepsake-1game-brief.md").read_text()
+    assert "(M3)" not in env
+    assert "(M4)" not in env
+    assert "project.godot" not in env
+    assert "instruction.md" not in env
+    assert "HARD-no-spawn" not in env
+    assert "src/game.tsx" in env
+    assert "two" in env.lower() and "logic frames" in env.lower()
+    main_text = (skill / "keepsake-main.md").read_text()
+    assert "M3" not in main_text
+    assert "M4" not in main_text
+    assert "1280" in main_text
+    assert "/workspace/assets/library/" in main_text
+    assert "scenario" in main_text
+    lower = main_text.lower()
+    assert "memory board" in lower
     assert "grows" in lower
     assert "gating" in lower
     assert "separate traces" in lower
-    assert "do not emit" in lower and "project.godot" in lower
-    assert "Do not copy Godot" in text
-    main_md = skill / "keepsake-main.md"
-    assert main_md.is_file()
-    main_text = main_md.read_text()
-    assert "M3" not in main_text
-    assert "M4" not in main_text
+    godot = (skill / "appendix-godot.md").read_text()
+    assert "project.godot" in godot
+    assert "1game" not in godot.lower()
+    assert "instruction.md" not in godot
     skill_md = (skill / "SKILL.md").read_text()
-    assert "HARD-no-spawn" in skill_md
-    assert "phase-1-generate" in skill_md
-    assert "1+1-only" in skill_md  # mentioned only as forbidden name
+    assert "HARD-no-spawn" not in skill_md
+    assert "phase-1-run-once-keepsake" in skill_md
+    assert "1+1-only" in skill_md
+    assert "score-godot" in skill_md
+    assert "score-1game" in skill_md
 
 
 def test_compare_main_exits_zero_when_not_publishable(tmp_path: Path) -> None:

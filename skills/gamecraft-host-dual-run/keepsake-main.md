@@ -4,9 +4,9 @@ Build **Keepsake**, a complete, shippable micro-game: a quiet memory-reconstruct
 
 Someone has died. The player sorts what they left behind. A faded photograph, a folded letter, a worn ring, a diary with a torn-out page — objects hold fragments of a life and do not reveal meaning in a fixed order. The loop is **examine, remember, connect, understand**. Player order, and how they read an ambiguous choice the dead made, must change the closing understanding.
 
-This is not a long short-story and not a tech demo. A demo is **≤20 seconds / 600 frames**. That is a **short mechanical game**: the memory board is **always on screen**, examining an object is **1–2 clicks**, and endings are **styled cards or a title change** — not pages of unread prose.
+This is not a long short-story and not a tech demo. Viewport is **1280×720**. A demo is **≤20 seconds / 600 frames** at 30 fps. That is a **short mechanical game**: the memory board is **always on screen**, examining an object is **1–2 clicks**, and endings are **styled cards or a title change** — not pages of unread prose.
 
-Every demo starts **cold from the title**. No mid-run continue, no preloaded inventory.
+Every demo starts **cold from the title**. No mid-run continue, no preloaded inventory. Omit the JSON key `scenario` on every trace.
 
 ## What the player can do
 
@@ -20,12 +20,23 @@ Every demo starts **cold from the title**. No mid-run continue, no preloaded inv
 
 Prefer illustrated or pixel-art keepsakes and themed UI.
 
+## Assets (both arms)
+
+Read-only host libraries (copy into this project’s `assets/`; do not edit the mounts):
+
+- `/workspace/assets/library/` — Kenney CC0
+- `/workspace/assets/library-oga/` — respect each `LICENSE.txt`
+
+If a mount is missing, ship with whatever is in-tree; do not invent a second library path. Missing polish is not an engine ranking.
+
 ## Demo traces (required)
 
-Ship several short traces (30 fps, `duration_frames` ≤ 600). Each starts from **cold title**. You need **three separate traces**:
+Ship **1–10** files at `demo_outputs/*.json` (no root `traces.json`). Events: `mouse_click` / `mouse_down` / `mouse_up` / `mouse_move` / `key_press` / `key_down` / `key_up` / `wait`. Clicks must match **this** project’s 1280×720 layout.
+
+You need **three separate traces**, each from **cold title**:
 
 1. Board grows after examining **≥2 objects** in **non-default order**.
 2. **Gating contrast** across two traces (one path unlocks a later beat the other path does not).
 3. A **different authored ending** than the other ending trace.
 
-Traces 2 and 3 may reuse the two-path idea: one pair shows gating, one pair shows two endings, as long as all three listed evidences exist as separate cold-title recordings.
+Traces 2 and 3 may reuse the two-path idea as long as all three listed evidences exist as separate cold-title recordings.
