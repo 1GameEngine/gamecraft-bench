@@ -113,6 +113,13 @@ def test_keepsake_prompts_omit_rubric_ids() -> None:
     assert "1+1-only" in skill_md
     assert "score-godot" in skill_md
     assert "score-1game" in skill_md
+    assert "consumed" in skill_md
+    assert "child_raw" in skill_md
+    assert "protocol_cap" in skill_md
+    excerpt = (skill / "score-excerpt.md").read_text()
+    assert "child_raw" in excerpt
+    assert "protocol_cap" in excerpt
+    assert "Same USER bytes" in excerpt
 
 
 def test_compare_main_exits_zero_when_not_publishable(tmp_path: Path) -> None:
