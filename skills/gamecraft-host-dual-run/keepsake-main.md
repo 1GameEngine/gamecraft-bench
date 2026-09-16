@@ -1,4 +1,4 @@
-# Keepsake — generation MAIN (engine-neutral)
+# Keepsake
 
 Build **Keepsake**, a complete, shippable micro-game: a quiet memory-reconstruction visual novel about sorting a late person’s belongings.
 
@@ -20,14 +20,14 @@ Every demo starts **cold from the title**. No mid-run continue, no preloaded inv
 
 Prefer illustrated or pixel-art keepsakes and themed UI.
 
-## Assets (both arms)
+## Assets
 
 Read-only host libraries (copy into this project’s `assets/`; do not edit the mounts):
 
 - `/workspace/assets/library/` — Kenney CC0
 - `/workspace/assets/library-oga/` — respect each `LICENSE.txt`
 
-If a mount is missing, ship with whatever is in-tree; do not invent a second library path. Missing polish is not an engine ranking.
+If a mount is missing, ship with whatever is in-tree; do not invent a second library path.
 
 ## Demo traces (required)
 

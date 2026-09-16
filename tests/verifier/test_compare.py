@@ -100,6 +100,9 @@ def test_keepsake_prompts_omit_rubric_ids() -> None:
     assert "grows" in lower
     assert "gating" in lower
     assert "separate traces" in lower
+    assert "both arms" not in lower
+    assert "engine ranking" not in lower
+    assert "engine-neutral" not in lower
     godot = (skill / "appendix-godot.md").read_text()
     assert "project.godot" in godot
     assert "1game" not in godot.lower()

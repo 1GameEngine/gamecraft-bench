@@ -1,6 +1,6 @@
 # 1Game system envelope (not USER)
 
-Follow MAIN. Follow `@1game/skill`. Host binaries `/usr/local/bin/1game` and `1gameplay` only — never `pnpm exec`.
+Follow the user brief. Follow `@1game/skill`. Host binaries `/usr/local/bin/1game` and `1gameplay` only — never `pnpm exec`.
 
 ```
 <project>/
@@ -13,6 +13,6 @@ Follow MAIN. Follow `@1game/skill`. Host binaries `/usr/local/bin/1game` and `1g
 
 Scene **1280×720**. Trace `x,y` match this scene. `mouse_click` / `key_press` each consume **two** logic frames; put slack at the **end** of traces.
 
-Copy host libraries into `assets/` if the mounts exist (same paths as MAIN).
+Copy host libraries into `assets/` if the mounts exist (paths listed in the user brief).
 
 Do not wrap Xvfb or set `DISPLAY=`. Do not run the verifier. Leave PLAY/BUILD capture to the parent.
