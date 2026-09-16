@@ -27,4 +27,6 @@ Write only JSON:
 
 Replace numeric placeholders with `0 | 0.5 | 1 | "Unscored"`. Cite PNG filenames in rationales.
 
-**Footer for the parent merge (required):** Not Harbor VLM; not `reward.txt`; not `compare` `diagnostic_columns`; not paper / not an engine ranking; V/A unpublished; Godot x11grab frames vs 1Game timeline last-shots are not the same medium; M4 stills cannot prove a lock; Unscored ≠ 0; sequential Tasks; n=1 `visualnovel-keepsake`; Tasks may still see `/workspace`.
+**Footer for the parent merge (required):** Not Harbor VLM; not `reward.txt`; not `compare` `diagnostic_columns`; not paper / not an engine ranking; V/A unpublished; Godot x11grab frames vs 1Game timeline last-shots are not the same medium; M4 stills cannot prove a lock; Unscored ≠ 0; sequential Tasks; n=1 `visualnovel-keepsake`; Tasks may still see `/workspace`. Same USER bytes ≠ same total prompt.
+
+**Parent merge (do not attach this block to scorers):** Keep child JSON unmodified. Print two columns per arm: `child_raw` (verbatim) and `protocol_cap`. If M4 is 1 from stills, `protocol_cap` is `0.5` or `"Unscored"`, never 1. Unscored stays Unscored (not 0). Do not average Unscored. Do not print a single-number ranking table.
