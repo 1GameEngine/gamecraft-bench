@@ -11,6 +11,8 @@ import argparse
 import json
 from pathlib import Path
 
+from .host_paths import HostPathError, assert_not_ledger_write
+
 # Diagnostic columns only. D3 uses agg=max + visual wording — not a column.
 DIAGNOSTIC_IDS = ("M3", "M4", "D2", "D4", "D5")
 UNPUBLISHED_MAX_IDS = ("D3",)
@@ -132,6 +134,11 @@ def main(argv: list[str] | None = None) -> int:
                         help="Verifier output dir for --engine 1game")
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
+    try:
+        args.out = assert_not_ledger_write(args.out)
+    except HostPathError as exc:
+        print(str(exc))
+        return 2
     table = merge_pair(load_breakdown(args.godot), load_breakdown(args.onegame))
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(table, indent=2) + "\n")

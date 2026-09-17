@@ -42,6 +42,7 @@ import tempfile
 import time
 from pathlib import Path
 
+from .host_paths import host_exclusive_requested
 from .judges import JudgeError, MultimodalJudge, get_judge
 from .judges.base import JudgeRequest, RequirementSpec
 from .replay import ReplayError, replay_trace
@@ -205,10 +206,11 @@ def score_project(
                 errors.append(f"replay failed for {demo_id}: {e}")
                 continue
 
-            frames, still_source = _judge_stills(
+            frames, still_source = stills_for_judge(
                 rr,
                 demo_dir / "frames",
-                engine=resolved_engine,
+                requested_engine=engine,
+                resolved_engine=resolved_engine,
                 duration_seconds=rr.duration_seconds,
                 interval_seconds=frame_interval_seconds,
                 max_window_seconds=max_demo_seconds,
@@ -517,6 +519,39 @@ def _run_build_check(
         msg = header + f"build_check could not run: {e}"
         log_path.write_text(msg)
         return False, msg
+
+
+def stills_for_judge(
+    rr,
+    frames_dir: Path,
+    *,
+    requested_engine: str | None,
+    resolved_engine: str,
+    duration_seconds: float,
+    interval_seconds: float,
+    max_window_seconds: float | None,
+    seed: str | None,
+) -> tuple[list[Path], str]:
+    """Host ``--engine godot|1game`` never mp4-samples. Harbor auto may.
+
+    Does not change ``_judge_stills``; host Godot with no event stills
+    skips that function so Harbor's Godot ``mp4_sample`` path stays intact.
+    """
+    if (
+        host_exclusive_requested(requested_engine)
+        and resolved_engine == "godot"
+        and not rr.still_paths
+    ):
+        return [], rr.still_source or "missing_event_stills"
+    return _judge_stills(
+        rr,
+        frames_dir,
+        engine=resolved_engine,
+        duration_seconds=duration_seconds,
+        interval_seconds=interval_seconds,
+        max_window_seconds=max_window_seconds,
+        seed=seed,
+    )
 
 
 def _judge_stills(

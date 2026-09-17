@@ -18,6 +18,9 @@ dist/
 
 # Harbor job outputs (regenerated on every run)
 jobs/
+gamecraft-bench-jobs-compare/
+gamecraft-host-runs/
+prereg-roles.md
 
 # Local sandbox dirs (LocalSubprocessEnvironment)
 sandboxes/

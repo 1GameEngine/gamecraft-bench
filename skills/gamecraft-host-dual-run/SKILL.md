@@ -1,40 +1,41 @@
-# GameCraft host dual-engine **diagnostic** (not paper ranking)
+# Host Dual Protocol v1 (product-stack diagnostic, not an engine ranking)
 
-**Claim lock:** Same USER bytes ≠ same total prompt. System envelopes differ; 1Game still has `@1game/skill`; Tasks may still see `/workspace`. Do not call the merge an engine ranking or a same-input-prompt comparison. Do not cite stub 1.0, `compare.publishable`, or Harbor `reward.txt` as 产物分数.
+**Claim class: `host_product_stack_diagnostic`.** Same USER bytes ≠ same total prompt. The 1Game arm includes `@1game/skill`; **no parent cell may be attributed to the engine.** Split cards, never an aligned `M3|godot|1game` subtraction table, never a ranking, never Harbor `reward.txt` / stub 1.0 / `compare.publishable` as 产物分数.
 
-**Kill list (first):** No 10+5 Harbor sweep. No extra engines or slugs. No `harbor run --agent`. No nested Xvfb / `DISPLAY=` wrap for 1Game. Generators must not run the verifier or `tools/screenshot.sh`. Children spawn **zero** Tasks. Never write pixel scores into Harbor `reward.txt`. Never `JOBS_ROOT=$HOME`. Never nest compare under `$HOME/gamecraft-bench-jobs`. Never call this unlock `1+1-only`. A VLM key is **not** a spawn gate.
+**Default: do not spawn.** Spawn only when the user says `GO：按 Host Dual Protocol 对 slug visualnovel-keepsake 开一轮` (new `experiment_id` every time). v1 registers **only** that slug. Looking at scores, listing `$HOME/gamecraft-host-runs`, or reading `host_excerpt_ledger/` is **not** a spawn gate. A VLM key is not a spawn gate.
 
-**Unlock: `phase-1-run-once-keepsake` (gen consumed).** Slug is only `visualnovel-keepsake`. The first gen + first-capture PNG scores are archived. Do **not** gen again. Do **not** re-score the old `frame_*` / mp4-sampled PNGs (p-hacking). User saying use this skill on this slug **and 新录再打** authorizes: parent re-replay of existing `projects/{godot,1game}` with event stills, then sequential `score-godot` then a **new** `score-1game` on **those new stills only**. No `pixel-reader`. Harbor 140 is unchanged. Do not replace `@1game/skill`. Do not commit `.cursor/skills/1game*` or `$HOME` compare trees.
+**Kill list:** No 10+5 Harbor sweep. No extra engines or slugs. No `harbor run --agent`. No nested Xvfb / `DISPLAY=` wrap for 1Game. Generators must not run the verifier or `tools/screenshot.sh`. Children spawn **zero** Tasks. Never write Cursor pixel scores into Harbor `reward.txt`. Never `JOBS_ROOT=$HOME` (the home directory itself). Never nest host-runs under `$HOME/gamecraft-bench-jobs`. Never call an unlock `1+1-only`. Do not replace `@1game/skill`. Do not commit `.cursor/skills/1game*` or `$HOME` run trees. Do not promote the spent local n=1 tree under `gamecraft-bench-jobs-compare/visualnovel-keepsake/`. Do not strip skill off a frozen gen and re-score. Do not reuse consumed phrases `phase-1-run-once-keepsake` or `新录再打` as spawn keys.
 
-## Packing (USER bytes must match)
+## Identities and trees
 
-| Slot | Both arms | Differs |
-| --- | --- | --- |
-| **USER** | Exact bytes of `keepsake-main.md` | Never. Hash before spawn. |
-| **System** | — | `appendix-godot.md` **or** `keepsake-1game-brief.md` (envelope) |
-| Not attached | This `SKILL.md`, Harbor `instruction.md`, `rubric.json`, stub CLI | — |
+`experiment_id` must match `^h-[0-9]{8}t[0-9]{6}z-[a-z0-9]{8}$` (example `h-20260917t134612z-k4n9xq2p`). It is **not** the slug.
 
-Do not concatenate MAIN+appendix into USER. Do not put “you are Godot/1Game” in USER.
+Local source of truth:
 
-Trees: `$HOME/gamecraft-bench-jobs-compare/visualnovel-keepsake/projects/{godot,1game}` — **not** `/workspace/game`. Stub output: `.../stub/{godot,1game}` — never the same dir as `--project`. Score PNG copies: `.../score-evidence/{godot,1game}/`.
+`$HOME/gamecraft-host-runs/<experiment_id>/` — `projects/{godot,1game}/`, `replay/`, `stub/`, `excerpt/`, `merge.md`, `meta.json`.
 
-First run: spawn gens **in parallel**. Stub is **parent-only**. Scores are **sequential**: `score-godot` then a **new** `score-1game` (no prior scores in context). **新录再打:** do not spawn gens; parent re-stubs into a new output dir; then score the new event stills only.
+Harbor jobs: `$HOME/gamecraft-bench-jobs` (or `GAMECRAFT_BENCH_JOBS_ROOT`). Compare sibling leftover: `$HOME/gamecraft-bench-jobs-compare/` (do not write new runs there).
+
+Optional later git promotion (batch 4, not mkdir in this protocol pack): `host_excerpt_ledger/<experiment_id>.json`. Filename stem **is** `experiment_id` (`O_EXCL`). Schema: `ledger.schema.json` in this directory (not inside the ledger folder). Do not attach ledger files to generators.
+
+## Packing
+
+See `packing.md`. USER = exact `keepsake-main.md` bytes both arms. Appendices are system-only. Hash USER before spawn.
+
+## Layers
+
+1. **gen** — parallel Tasks, zero child Tasks. Traces are generator-authored; parent does not rewrite clicks.
+2. **record** — parent replay. Evidence is 1280 event stills: Godot `demos/*/events/event_*.png` (`x11_post_event`); 1Game `demos/*/timeline/event_*.png` (`1game_post_event_plus2`). mp4 / `frame_*` / `shot_*` are archive. Do not zip `frame_i` to `shot_i`. Host `--engine godot|1game` with no event stills is **void** (do not mp4-sample). Harbor `--engine auto` may still sample Godot mp4.
+3. **score** — sequential: `score-godot` then a **new** `score-1game` (no prior scores in the 1Game context). Excerpt ids in `score-excerpt.md`. Parent face is **M3 split cards only**. M4/D2/D4/D5 stay in the local appendix; M4 `protocol_cap` from stills is never 1.
+4. **stub** — pipeline smoke only. Not 产物分数. Stub 1Game first. Skip Godot stub if dashboard Play may hold `:300`–`:307`. Parent `unset DISPLAY` before 1Game.
+
+`void ≠ fail ≠ Unscored ≠ 0`. Either arm void ⇒ this claim class publishes **no parent pair**. `compare.py` smoke (`success_gate` / `cite_columns` false) is not the parent surface.
 
 ## Jobs / engine / Xvfb
 
-Harbor jobs: `$HOME/gamecraft-bench-jobs`. Compare sibling: `$HOME/gamecraft-bench-jobs-compare/`. Dashboard `JOBS_ROOT` is never `$HOME`.
+Host Godot **MUST** `--engine godot`. 1Game **MUST** `--engine 1game`. `auto` / omit is **always Godot** (Harbor). Abort if `breakdown.engine` mismatches.
 
-Host Godot **MUST** `--engine godot`. 1Game **MUST** `--engine 1game`. `auto` / omit is **always Godot**. Abort if `breakdown.engine` mismatches.
-
-Verifier Xvfb is `:200`–`:500`. Dashboard Play is `:300`–`:307` with **no flock**. If dashboard might be running, **do not** Godot stub. Stub **1Game first**. Parent **`unset DISPLAY`** before 1Game (the helper inherits `os.environ`; it does not strip DISPLAY). 1Game never sets `DISPLAY=`.
-
-## Stub ≠ scores
-
-`--judge stub` is pipeline smoke. Stub 1.0 is not 产物分数. Fixture pixel-diff is not green. `compare` JSON / exit 0 is not success (`success_gate` / `cite_columns` are false).
-
-产物分数 = sequential Cursor PNG JSON (`score-excerpt.md`) merged to markdown **with footer**, printing **child_raw** and **protocol_cap** (do not rewrite child JSON; stills M4 cannot stay 1 in `protocol_cap`). Not Harbor VLM. Not Harbor `reward.txt`. Not `compare` `diagnostic_columns`. Stub `reward.txt` under jobs-compare is smoke only.
-
-Godot evidence: `demos/*/events/event_*.png` (input-after stills; x11grab mp4 is archive). 1Game evidence: `demos/*/timeline/event_*.png` (and leftover cadence `shot_*` archive). Do not zip `frame_i` to `shot_i`.
+Verifier Xvfb is `:200`–`:500`. Dashboard Play is `:300`–`:307` with **no flock**.
 
 ## pytest
 
@@ -49,21 +50,20 @@ Reinstall non-editable after editing `gamecraft_bench/`. Never `pnpm exec 1gamep
 ```bash
 unset PYTHONPATH
 cd "$HOME"
-COMPARE="$HOME/gamecraft-bench-jobs-compare"
-PROJ="$COMPARE/visualnovel-keepsake/projects"
-STUB="$COMPARE/visualnovel-keepsake/stub-eventstill"
+RUN="$HOME/gamecraft-host-runs/<experiment_id>"
 RUBRIC="/workspace/tasks/visualnovel-keepsake/tests/rubric.json"
 
 python -m gamecraft_bench.verifier \
-  --project "$PROJ/1game" --rubric "$RUBRIC" --output "$STUB/1game" \
+  --project "$RUN/projects/1game" --rubric "$RUBRIC" --output "$RUN/stub/1game" \
   --engine 1game --judge stub
 
-# Godot only if dashboard Play is not holding :300–:307
 python -m gamecraft_bench.verifier \
-  --project "$PROJ/godot" --rubric "$RUBRIC" --output "$STUB/godot" \
+  --project "$RUN/projects/godot" --rubric "$RUBRIC" --output "$RUN/stub/godot" \
   --engine godot --judge stub
 
 python -m gamecraft_bench.verifier.compare \
-  --godot "$STUB/godot" --onegame "$STUB/1game" \
-  --out "$STUB/table.json"
+  --godot "$RUN/stub/godot" --onegame "$RUN/stub/1game" \
+  --out "$RUN/stub/table.json"
 ```
+
+Do not point `--output` / `--out` at `host_excerpt_ledger/`.

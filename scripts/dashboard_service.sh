@@ -24,6 +24,16 @@ done
 source "$REPO_ROOT/.venv/bin/activate"
 export PYTHONPATH="$REPO_ROOT"
 export GAMECRAFT_BENCH_JOBS_ROOT="$JOBS_ROOT"
+python - <<'PY'
+from pathlib import Path
+import os, sys
+from gamecraft_bench.verifier.host_paths import HostPathError, resolve_jobs_root
+try:
+    resolve_jobs_root(os.environ["GAMECRAFT_BENCH_JOBS_ROOT"])
+except HostPathError as exc:
+    print(exc, file=sys.stderr)
+    sys.exit(1)
+PY
 
 echo "GameCraft-Bench Dashboard  →  http://localhost:$PORT/"
 echo "Jobs root: $JOBS_ROOT"

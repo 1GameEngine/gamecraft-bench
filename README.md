@@ -218,11 +218,11 @@ python -m gamecraft_bench.verifier \
   --judge stub
 ```
 
-Harbor canary jobs use `$HOME/gamecraft-bench-jobs`. Dual-engine **stub smoke** belongs under `$HOME/gamecraft-bench-jobs-compare/visualnovel-keepsake/stub/{godot,1game}` (sibling compare tree; never nest under Harbor jobs).
+Harbor canary jobs use `$HOME/gamecraft-bench-jobs`. Host dual-run **stub smoke** belongs under `$HOME/gamecraft-host-runs/<experiment_id>/stub/{godot,1game}` (never nest under Harbor jobs; never set dashboard `JOBS_ROOT` to `$HOME` itself).
 
 `--engine auto` (default) is **always Godot** (Harbor identity). 1Game is **only** `--engine 1game` (host). That path **ignores** the rubric `godot --headless` command and runs `1game build` + `1gameplay create` + `step --surface display --flush --ms 16 --repeat 5` using `/usr/local/bin/1gameplay` and `NODE_PATH=/opt/1game/node_modules`. Missing `1gameplay` on `--engine 1game` exits 2 and does **not** write `reward.txt`. 1Game PLAY is a **timeline slideshow** (≤0.5s `step` slices, `--at last` screenshots, concat by `tickedTimeMs`) — not a last-frame still loop and **not** equivalent to Godot x11grab. Godot judge hard-fail still writes `reward.txt` (Harbor). 1Game judge hard-fail skips it. Host 1Game judge copy says “2D game”; Harbor auto keeps “Godot 2D game”. Compare output is a **host diagnostic JSON** (`python -m gamecraft_bench.verifier.compare` into `$HOME/gamecraft-bench-jobs-compare/`, not the Harbor jobs root): a **blocker dump**, not a publishable green or paper ranking. Overall / V/A / D3 are unpublished; diagnostic columns are M3/M4/D2/D4/D5 only.
 
-This is a **pipeline** path. `StubJudge` scores are not engine rankings and must not be compared to the table above. Host dual-run packing lives in `skills/gamecraft-host-dual-run/SKILL.md` (`phase-1-run-once-keepsake`): USER is `keepsake-main.md` (same bytes both arms); appendices are system-only. Cursor PNG scores are not Harbor VLM and must not be written to `reward.txt`. Stub 1Game first; skip Godot stub if dashboard Play may hold `:300`–`:307`.
+This is a **pipeline** path. `StubJudge` scores are not engine rankings and must not be compared to the table above. Host Dual Protocol packing lives in `skills/gamecraft-host-dual-run/` (`SKILL.md`, `packing.md`): USER is `keepsake-main.md` (same bytes both arms); appendices are system-only. Cursor PNG scores are a product-stack diagnostic (parent face: M3 split cards), not Harbor VLM, and must not be written to `reward.txt`. Stub 1Game first; skip Godot stub if dashboard Play may hold `:300`–`:307`. Default: do not spawn gens unless the user GO's a new `experiment_id`.
 
 ## Dashboard
 

@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from gamecraft_bench.verifier import replay as replay_godot
 from gamecraft_bench.verifier import replay_1game as r1
 from gamecraft_bench.verifier.replay import ReplayResult
-from gamecraft_bench.verifier.score import _copy_event_stills, _judge_stills
+from gamecraft_bench.verifier.score import _copy_event_stills, _judge_stills, stills_for_judge
 
 
 def test_grab_x11_still_is_single_frame() -> None:
@@ -130,3 +130,53 @@ def test_score_project_source_routes_1game_off_mp4() -> None:
     assert "engine == \"1game\"" in src
     assert "_sample_frames" in src
     assert "still_paths" in src
+
+
+def _empty_godot_rr(tmp_path: Path) -> ReplayResult:
+    return ReplayResult(
+        output_mp4=tmp_path / "demo.mp4",
+        duration_seconds=1.0,
+        godot_returncode=0,
+    )
+
+
+def test_host_godot_without_stills_skips_mp4_sample(tmp_path: Path) -> None:
+    rr = _empty_godot_rr(tmp_path)
+    with patch("gamecraft_bench.verifier.score._judge_stills") as inner:
+        with patch("gamecraft_bench.verifier.score._sample_frames") as sample:
+            frames, source = stills_for_judge(
+                rr,
+                tmp_path / "frames",
+                requested_engine="godot",
+                resolved_engine="godot",
+                duration_seconds=1.0,
+                interval_seconds=0.5,
+                max_window_seconds=20.0,
+                seed="01",
+            )
+    inner.assert_not_called()
+    sample.assert_not_called()
+    assert frames == []
+    assert source == "missing_event_stills"
+
+
+def test_harbor_auto_godot_without_stills_still_samples(tmp_path: Path) -> None:
+    rr = _empty_godot_rr(tmp_path)
+    (tmp_path / "demo.mp4").write_bytes(b"not-a-video")
+    with patch(
+        "gamecraft_bench.verifier.score._sample_frames",
+        return_value=[tmp_path / "frame.png"],
+    ) as sample:
+        frames, source = stills_for_judge(
+            rr,
+            tmp_path / "frames",
+            requested_engine=None,
+            resolved_engine="godot",
+            duration_seconds=1.0,
+            interval_seconds=0.5,
+            max_window_seconds=20.0,
+            seed="01",
+        )
+    sample.assert_called_once()
+    assert source == "mp4_sample"
+    assert frames == [tmp_path / "frame.png"]

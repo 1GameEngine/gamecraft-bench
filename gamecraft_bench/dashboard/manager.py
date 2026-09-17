@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .. import config as cfg
+from ..verifier.host_paths import HostPathError, resolve_jobs_root
 
 _DISPLAY_BASE = 300
 _DISPLAY_COUNT = 8
@@ -43,6 +44,12 @@ class SessionManager:
     @staticmethod
     def list_trials(jobs_root: Path) -> list[dict]:
         """Scan jobs_root for trials and return analysis-ready metadata."""
+        try:
+            jobs_root = resolve_jobs_root(jobs_root)
+        except HostPathError:
+            return []
+        if not jobs_root.is_dir():
+            return []
         trials = []
         for run_dir in sorted(jobs_root.iterdir(), reverse=True):
             if not run_dir.is_dir():

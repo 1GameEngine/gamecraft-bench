@@ -75,11 +75,18 @@ def test_merge_rejects_auto_engine_on_1game_arm() -> None:
     assert table["publishable"] is False
 
 
+KEEP_MAIN_SHA256 = (
+    "f1f97886f18d6a0ef59a3c96a007a11824e657e1408e756e061932977654119a"
+)
+
+
 def test_keepsake_prompts_omit_rubric_ids() -> None:
     root = Path(__file__).resolve().parents[2]
     skill = root / "skills/gamecraft-host-dual-run"
     assert (skill / "appendix-godot.md").is_file()
     assert (skill / "score-excerpt.md").is_file()
+    assert (skill / "packing.md").is_file()
+    assert (skill / "ledger.schema.json").is_file()
     assert not (skill / "plumbing.md").is_file()
     env = (skill / "keepsake-1game-brief.md").read_text()
     assert "(M3)" not in env
@@ -89,7 +96,11 @@ def test_keepsake_prompts_omit_rubric_ids() -> None:
     assert "HARD-no-spawn" not in env
     assert "src/game.tsx" in env
     assert "two" in env.lower() and "logic frames" in env.lower()
-    main_text = (skill / "keepsake-main.md").read_text()
+    main_bytes = (skill / "keepsake-main.md").read_bytes()
+    import hashlib
+
+    assert hashlib.sha256(main_bytes).hexdigest() == KEEP_MAIN_SHA256
+    main_text = main_bytes.decode()
     assert "M3" not in main_text
     assert "M4" not in main_text
     assert "1280" in main_text
@@ -107,20 +118,23 @@ def test_keepsake_prompts_omit_rubric_ids() -> None:
     assert "project.godot" in godot
     assert "1game" not in godot.lower()
     assert "instruction.md" not in godot
+    packing = (skill / "packing.md").read_text()
+    assert KEEP_MAIN_SHA256 in packing
+    assert "Not attached" in packing
     skill_md = (skill / "SKILL.md").read_text()
     assert "HARD-no-spawn" not in skill_md
-    assert "phase-1-run-once-keepsake" in skill_md
+    assert "host_product_stack_diagnostic" in skill_md
     assert "1+1-only" in skill_md
     assert "score-godot" in skill_md
     assert "score-1game" in skill_md
-    assert "consumed" in skill_md
-    assert "新录再打" in skill_md
-    assert "child_raw" in skill_md
-    assert "protocol_cap" in skill_md
+    assert "host_excerpt_ledger" in skill_md
+    assert "h-[0-9]{8}t[0-9]{6}z-[a-z0-9]{8}" in skill_md
+    assert "do not spawn" in skill_md.lower()
     excerpt = (skill / "score-excerpt.md").read_text()
-    assert "child_raw" in excerpt
+    assert "split cards" in excerpt.lower()
     assert "protocol_cap" in excerpt
     assert "Same USER bytes" in excerpt
+    assert "host_product_stack_diagnostic" in excerpt
 
 
 def test_compare_main_exits_zero_when_not_publishable(tmp_path: Path) -> None:

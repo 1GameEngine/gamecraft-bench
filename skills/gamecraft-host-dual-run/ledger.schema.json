@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "gamecraft-host-dual-run/ledger.schema.json",
+  "title": "Host excerpt ledger record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "experiment_id",
+    "claim_class",
+    "slug",
+    "protocol",
+    "cite_columns",
+    "not_an_engine_ranking",
+    "parent_surface",
+    "arms",
+    "user_sha256"
+  ],
+  "properties": {
+    "experiment_id": {
+      "type": "string",
+      "pattern": "^h-[0-9]{8}t[0-9]{6}z-[a-z0-9]{8}$"
+    },
+    "claim_class": {
+      "const": "host_product_stack_diagnostic"
+    },
+    "slug": { "type": "string", "const": "visualnovel-keepsake" },
+    "protocol": { "const": "cursor-subagent-png-excerpt" },
+    "cite_columns": { "const": false },
+    "not_an_engine_ranking": { "const": true },
+    "skill_entanglement": {
+      "type": "string",
+      "description": "Printed on the parent face. 1Game arm includes @1game/skill."
+    },
+    "user_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "parent_surface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ids", "layout"],
+      "properties": {
+        "ids": {
+          "type": "array",
+          "const": ["M3"]
+        },
+        "layout": { "const": "split_cards" }
+      }
+    },
+    "arms": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["godot", "1game"],
+      "properties": {
+        "godot": { "$ref": "#/$defs/arm" },
+        "1game": { "$ref": "#/$defs/arm" }
+      }
+    },
+    "versions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "gen": { "type": "string" },
+        "record": { "type": "string" },
+        "score": { "type": "string" },
+        "godot": { "type": "string" },
+        "onegame": { "type": "string" },
+        "onegameplay": { "type": "string" }
+      }
+    }
+  },
+  "$defs": {
+    "arm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["void", "still_source", "trace_author"],
+      "properties": {
+        "void": { "type": "boolean" },
+        "still_source": {
+          "type": "string",
+          "enum": ["x11_post_event", "1game_post_event_plus2"]
+        },
+        "trace_author": { "const": "generator" },
+        "M3": {
+          "type": ["number", "string"],
+          "description": "0 | 0.5 | 1 | Unscored when void is false"
+        }
+      }
+    }
+  }
+}

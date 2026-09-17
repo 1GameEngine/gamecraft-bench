@@ -32,6 +32,7 @@ from pathlib import Path
 
 from .. import config as cfg
 from .judges import get_judge
+from .host_paths import HostPathError, assert_not_ledger_write
 from .score import (
     InfraError,
     ScoreResult,
@@ -89,6 +90,12 @@ def main(argv: list[str] | None = None) -> int:
              "1Game only with exclusive --engine 1game. Does not read env.",
     )
     args = parser.parse_args(argv)
+
+    try:
+        args.output = assert_not_ledger_write(args.output)
+    except HostPathError as exc:
+        print(f"[verifier] path error: {exc}", flush=True)
+        return 2
 
     args.output.mkdir(parents=True, exist_ok=True)
 
