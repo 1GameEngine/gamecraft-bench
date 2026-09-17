@@ -101,6 +101,7 @@ def replay_trace(
 
     w, h = viewport
     env = _onegame_env()
+    event_kept: list[Path] = []
     entry = _entry_path(project_dir)
     cadence_s = max(0.1, float(screenshot_cadence_seconds))
     rw, rh = record_size if record_size is not None else viewport
@@ -128,6 +129,7 @@ def replay_trace(
             play, archive, events, fps=fps, duration_frames=replay_frames,
             cwd=project_dir, env=env, log_path=play_log,
             on_step=shots.after_step,
+            on_event_still=shots.capture_event,
             max_step_ms=int(round(cadence_s * 1000)),
         )
         shots.capture(force=True)
@@ -154,6 +156,7 @@ def replay_trace(
             dest = keep / png.name
             shutil.copy2(png, dest)
             kept.append(dest)
+        event_kept = [keep / png.name for png in shots.event_pngs]
         (keep / "meta.json").write_text(json.dumps({
             "ticked_time_ms": shots.times_ms,
             "durations_seconds": durations,
@@ -162,6 +165,8 @@ def replay_trace(
             "click_extra_logic_frames": (
                 "mouse_click/key_press each consume +2 1Game logic frames"
             ),
+            "event_stills": [p.name for p in shots.event_pngs],
+            "still_source": "1game_post_event_plus2",
         }, indent=2))
         encode_slideshow_mp4(
             kept,
@@ -178,6 +183,8 @@ def replay_trace(
         output_mp4=output_mp4,
         duration_seconds=trace_seconds,
         godot_returncode=0,
+        still_paths=tuple(event_kept),
+        still_source="1game_post_event_plus2",
     )
 
 
@@ -376,6 +383,7 @@ class _TimelineShots:
         self.log_path = log_path
         self.cadence_ms = max(1, cadence_ms)
         self.pngs: list[Path] = []
+        self.event_pngs: list[Path] = []
         self.times_ms: list[int] = []
         self._last_shot_ms = -10**9
 
@@ -385,9 +393,22 @@ class _TimelineShots:
             self.capture(ticked_ms=ticked)
             self._last_shot_ms = ticked
 
-    def capture(self, *, force: bool = False, ticked_ms: int | None = None) -> None:
+    def capture(self, *, force: bool = False, ticked_ms: int | None = None) -> Path:
         del force
         png = self.shots_dir / f"shot_{len(self.pngs):04d}.png"
+        return self._screenshot(png, ticked_ms=ticked_ms, into_events=False)
+
+    def capture_event(self, ticked_ms: int | None = None) -> Path:
+        png = self.shots_dir / f"event_{len(self.event_pngs):04d}.png"
+        return self._screenshot(png, ticked_ms=ticked_ms, into_events=True)
+
+    def _screenshot(
+        self,
+        png: Path,
+        *,
+        ticked_ms: int | None,
+        into_events: bool,
+    ) -> Path:
         w, h = self.viewport
         _run_cli(
             [
@@ -402,9 +423,13 @@ class _TimelineShots:
         if not png.is_file() or png.stat().st_size <= 0:
             raise ReplayError("1gameplay frame screenshot produced an empty PNG")
         self.pngs.append(png)
+        if into_events:
+            self.event_pngs.append(png)
         if ticked_ms is None:
             ticked_ms = self.times_ms[-1] if self.times_ms else 0
         self.times_ms.append(int(ticked_ms))
+        self._last_shot_ms = int(ticked_ms)
+        return png
 
 
 def _last_ticked_ms(stdout: str) -> int:
@@ -432,6 +457,7 @@ def _apply_events(
     env: dict[str, str],
     log_path: Path | None,
     on_step=None,
+    on_event_still=None,
     max_step_ms: int = 500,
 ) -> None:
     ordered = sorted(events, key=lambda ev: int(ev.get("frame", 0)))
@@ -439,6 +465,7 @@ def _apply_events(
     ms_frame = _ms_per_frame(fps)
     for ev in ordered:
         frame = int(ev.get("frame", 0))
+        kind = str(ev.get("type", ""))
         if frame > cursor:
             _tick(
                 play, archive, (frame - cursor) * ms_frame,
@@ -446,8 +473,10 @@ def _apply_events(
                 max_step_ms=max_step_ms,
             )
             cursor = frame
-        for payload in _event_payloads(ev):
-            out = _run_cli(
+        last_out = ""
+        payloads = _event_payloads(ev)
+        for payload in payloads:
+            last_out = _run_cli(
                 [
                     play, "step", str(archive),
                     "--surface", "display",
@@ -458,8 +487,24 @@ def _apply_events(
                 cwd=cwd, env=env, timeout=120, log_path=log_path,
             )
             if on_step is not None:
-                on_step(out, had_event=True)
+                on_step(last_out, had_event=False)
             cursor += 1
+        if payloads and kind not in ("wait", "mouse_move"):
+            for _ in range(2):
+                last_out = _run_cli(
+                    [
+                        play, "step", str(archive),
+                        "--surface", "display",
+                        "--flush",
+                        "--ms", "16", "--repeat", "1",
+                    ],
+                    cwd=cwd, env=env, timeout=120, log_path=log_path,
+                )
+                if on_step is not None:
+                    on_step(last_out, had_event=False)
+                cursor += 1
+            if on_event_still is not None:
+                on_event_still(_last_ticked_ms(last_out))
     if duration_frames > cursor:
         _tick(
             play, archive, (duration_frames - cursor) * ms_frame,

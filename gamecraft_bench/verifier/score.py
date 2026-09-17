@@ -73,6 +73,7 @@ class DemoArtifacts:
     mp4_path: Path
     frame_paths: list[Path]
     duration_seconds: float
+    still_source: str = ""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -204,14 +205,21 @@ def score_project(
                 errors.append(f"replay failed for {demo_id}: {e}")
                 continue
 
-            frames = _sample_frames(
-                mp4_path,
+            frames, still_source = _judge_stills(
+                rr,
                 demo_dir / "frames",
+                engine=resolved_engine,
                 duration_seconds=rr.duration_seconds,
                 interval_seconds=frame_interval_seconds,
                 max_window_seconds=max_demo_seconds,
                 seed=demo_id,
             )
+            if not frames:
+                errors.append(
+                    f"no event stills for {demo_id} "
+                    f"(engine={resolved_engine} still_source={still_source!r})"
+                )
+                continue
 
             demo_artifacts.append(DemoArtifacts(
                 demo_id=demo_id,
@@ -219,6 +227,7 @@ def score_project(
                 mp4_path=mp4_path,
                 frame_paths=frames,
                 duration_seconds=rr.duration_seconds,
+                still_source=still_source,
             ))
 
         # 3. Score each demo: one batched judge call returns scores for
@@ -510,6 +519,48 @@ def _run_build_check(
         return False, msg
 
 
+def _judge_stills(
+    rr,
+    frames_dir: Path,
+    *,
+    engine: str,
+    duration_seconds: float,
+    interval_seconds: float,
+    max_window_seconds: float | None,
+    seed: str | None,
+) -> tuple[list[Path], str]:
+    """Judge pixels are event stills. 1Game never samples the slideshow mp4."""
+    if rr.still_paths:
+        copied = _copy_event_stills(rr.still_paths, frames_dir)
+        return copied, rr.still_source or "replay_still_paths"
+    if engine == "1game":
+        return [], rr.still_source or "missing_event_stills"
+    sampled = _sample_frames(
+        rr.output_mp4,
+        frames_dir,
+        duration_seconds=duration_seconds,
+        interval_seconds=interval_seconds,
+        max_window_seconds=max_window_seconds,
+        seed=seed,
+    )
+    return sampled, "mp4_sample"
+
+
+def _copy_event_stills(sources: tuple[Path, ...] | list[Path], dest_dir: Path) -> list[Path]:
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    out: list[Path] = []
+    for src in sources:
+        src = Path(src)
+        if not src.is_file() or src.stat().st_size <= 0:
+            continue
+        dest = dest_dir / src.name
+        if src.resolve() != dest.resolve():
+            shutil.copy2(src, dest)
+        if dest.is_file() and dest.stat().st_size > 0:
+            out.append(dest)
+    return out
+
+
 def _sample_frames(
     mp4_path: Path,
     out_dir: Path,
@@ -606,6 +657,10 @@ def _write_artifacts(
         "build_ok": result.build_ok,
         "engine": result.engine,
         "media": "slideshow" if result.engine == "1game" else "x11grab",
+        "still_source": next(
+            (d.still_source for d in result.demos if d.still_source),
+            "",
+        ),
         "publishable_overall": False if result.engine == "1game" else None,
         "judge": {"name": result.judge_name, "model": result.judge_model},
         "comparable": scores_are_comparable(result),
@@ -626,6 +681,7 @@ def _write_artifacts(
                 "trace": str(d.trace_path),
                 "mp4": str(d.mp4_path),
                 "duration_seconds": d.duration_seconds,
+                "still_source": d.still_source,
                 "frames": [str(p) for p in d.frame_paths],
             }
             for d in result.demos
