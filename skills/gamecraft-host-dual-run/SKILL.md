@@ -4,7 +4,7 @@
 
 **Kill list (first):** No 10+5 Harbor sweep. No extra engines or slugs. No `harbor run --agent`. No nested Xvfb / `DISPLAY=` wrap for 1Game. Generators must not run the verifier or `tools/screenshot.sh`. Children spawn **zero** Tasks. Never write pixel scores into Harbor `reward.txt`. Never `JOBS_ROOT=$HOME`. Never nest compare under `$HOME/gamecraft-bench-jobs`. Never call this unlock `1+1-only`. A VLM key is **not** a spawn gate.
 
-**Unlock: `phase-1-run-once-keepsake` (consumed).** Slug is only `visualnovel-keepsake`, once. That gen+score pair has already run. Do **not** spawn `gen-godot`, `gen-1game`, `score-godot`, or `score-1game` again for this slug (re-score is p-hacking unless protocol JSON fields are missing). Parent may have used **exactly** those four names. No `pixel-reader`. Harbor 140 is unchanged. Do not replace `@1game/skill`. Do not commit `.cursor/skills/1game*` or `$HOME` compare trees.
+**Unlock: `phase-1-run-once-keepsake` (gen consumed).** Slug is only `visualnovel-keepsake`. The first gen + first-capture PNG scores are archived. Do **not** gen again. Do **not** re-score the old `frame_*` / mp4-sampled PNGs (p-hacking). User saying use this skill on this slug **and 新录再打** authorizes: parent re-replay of existing `projects/{godot,1game}` with event stills, then sequential `score-godot` then a **new** `score-1game` on **those new stills only**. No `pixel-reader`. Harbor 140 is unchanged. Do not replace `@1game/skill`. Do not commit `.cursor/skills/1game*` or `$HOME` compare trees.
 
 ## Packing (USER bytes must match)
 
@@ -18,7 +18,7 @@ Do not concatenate MAIN+appendix into USER. Do not put “you are Godot/1Game”
 
 Trees: `$HOME/gamecraft-bench-jobs-compare/visualnovel-keepsake/projects/{godot,1game}` — **not** `/workspace/game`. Stub output: `.../stub/{godot,1game}` — never the same dir as `--project`. Score PNG copies: `.../score-evidence/{godot,1game}/`.
 
-On the consumed run: spawn gens **in parallel**. Stub is **parent-only**. Scores are **sequential**: `score-godot` then a **new** `score-1game` (no prior scores in context). Do not repeat that spawn.
+First run: spawn gens **in parallel**. Stub is **parent-only**. Scores are **sequential**: `score-godot` then a **new** `score-1game` (no prior scores in context). **新录再打:** do not spawn gens; parent re-stubs into a new output dir; then score the new event stills only.
 
 ## Jobs / engine / Xvfb
 
@@ -34,7 +34,7 @@ Verifier Xvfb is `:200`–`:500`. Dashboard Play is `:300`–`:307` with **no fl
 
 产物分数 = sequential Cursor PNG JSON (`score-excerpt.md`) merged to markdown **with footer**, printing **child_raw** and **protocol_cap** (do not rewrite child JSON; stills M4 cannot stay 1 in `protocol_cap`). Not Harbor VLM. Not Harbor `reward.txt`. Not `compare` `diagnostic_columns`. Stub `reward.txt` under jobs-compare is smoke only.
 
-Godot evidence: `demos/*/frames/frame_*.png`. 1Game evidence: `demos/*/timeline/shot_*.png`.
+Godot evidence: `demos/*/events/event_*.png` (input-after stills; x11grab mp4 is archive). 1Game evidence: `demos/*/timeline/event_*.png` (and leftover cadence `shot_*` archive). Do not zip `frame_i` to `shot_i`.
 
 ## pytest
 
@@ -51,7 +51,7 @@ unset PYTHONPATH
 cd "$HOME"
 COMPARE="$HOME/gamecraft-bench-jobs-compare"
 PROJ="$COMPARE/visualnovel-keepsake/projects"
-STUB="$COMPARE/visualnovel-keepsake/stub"
+STUB="$COMPARE/visualnovel-keepsake/stub-eventstill"
 RUBRIC="/workspace/tasks/visualnovel-keepsake/tests/rubric.json"
 
 python -m gamecraft_bench.verifier \

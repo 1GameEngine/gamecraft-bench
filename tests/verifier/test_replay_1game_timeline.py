@@ -137,6 +137,9 @@ def test_replay_trace_mock_uses_multiple_last_shots_not_still_loop(
             record_size=(64, 64),
         )
     assert result.output_mp4 == out
+    assert result.still_source == "1game_post_event_plus2"
+    assert result.still_paths
+    assert all(p.name.startswith("event_") for p in result.still_paths)
     shot_calls = [c for c in calls if c[1:3] == ["frame", "screenshot"]]
     assert len(shot_calls) >= 2
     ats = [c[c.index("--at") + 1] for c in shot_calls]
