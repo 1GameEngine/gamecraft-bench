@@ -18,7 +18,7 @@ Hard rules:
 - **No engine anywhere.** No Godot, no 1Game, no node types, no file layout, no API names, no language. "A scene", "the screen", "an input" are fine. If a sentence would need rewriting for the other arm, it is wrong.
 - **No rubric ids.** Never mention M1/D3/A2 or quote rubric text. The generator is building a game, not targeting a scorer.
 - **Keep the mechanics, drop the Godot scaffolding.** Viewport 1280×720, demo ≤20 seconds / 600 frames at 30 fps, cold start from title, `demo_outputs/*.json` traces, the asset mount paths. Copy this wording from the keepsake brief rather than inventing variants.
-- **Same self-report section, verbatim**, except for the beat list and the flag list. Copy it from `keepsake-main.md`, including the fenced example line and the rules beneath it.
+- **Same self-report section, verbatim**, except for the beat list and the flag list. Copy it from `visualnovel-keepsake-main.md`, including the fenced example line and the rules beneath it.
 
 ## The beats
 
