@@ -1,0 +1,62 @@
+{
+  "probe_schema_version": 1,
+  "slug": "puzzle-sokoban-dungeon",
+  "notes": "Engine-neutral beats for the v2 engine-toolchain comparison. Both arms implement the same stdout contract; Harbor rubric.json is untouched. Beats span three paths (puzzle, threat, progress) and are unioned across the run's demos.",
+  "beats": [
+    {
+      "id": "title",
+      "assert": {
+        "turns": { "eq": 0 },
+        "floor": { "min": 1 },
+        "outcome": { "not_null": false }
+      }
+    },
+    {
+      "id": "first_move",
+      "assert": {
+        "turns": { "min": 1 },
+        "outcome": { "not_null": false }
+      }
+    },
+    {
+      "id": "door_blocked",
+      "assert": {
+        "door": { "in": ["locked", "closed"] },
+        "outcome": { "not_null": false }
+      }
+    },
+    {
+      "id": "door_open",
+      "assert": {
+        "door": { "eq": "open" },
+        "turns": { "min": 1 }
+      }
+    },
+    {
+      "id": "item_used",
+      "assert": {
+        "turns": { "min": 1 }
+      }
+    },
+    {
+      "id": "undo",
+      "assert": {
+        "turns": { "min": 0 }
+      }
+    },
+    {
+      "id": "caught",
+      "assert": {
+        "outcome": { "in": ["caught", "dead"] },
+        "turns": { "min": 1 }
+      }
+    },
+    {
+      "id": "floor_cleared",
+      "assert": {
+        "outcome": { "in": ["cleared", "descended"] },
+        "turns": { "min": 1 }
+      }
+    }
+  ]
+}
