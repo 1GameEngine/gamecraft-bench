@@ -114,3 +114,64 @@ def test_mp4_sample_not_promotable() -> None:
     payload = _ok_payload(godot={"still_source": "mp4_sample"})
     with pytest.raises(HostPathError, match="still_source"):
         validate_record(payload)
+
+
+def _v2_payload(**cell_over) -> dict:
+    cell = {
+        "arm": "godot",
+        "repeat": 1,
+        "model": "agent-x",
+        "build_ok": True,
+        "launch_ok": True,
+        "void": False,
+        "reach": 1.0,
+        "state": 0.8,
+        "still_source": "x11_post_event",
+        "trace_author": "generator",
+    }
+    cell.update(cell_over)
+    return {
+        "experiment_id": _EID,
+        "claim_class": "engine_toolchain_effect",
+        "slug": "visualnovel-keepsake",
+        "probe_schema_version": 1,
+        "prereg_frozen_at": "9a67023",
+        "cells": [cell],
+    }
+
+
+def test_v2_record_roundtrip(tmp_path: Path) -> None:
+    dest = tmp_path / "host_excerpt_ledger" / f"{_EID}.json"
+    write_ledger(dest, _v2_payload())
+    written = json.loads(dest.read_text())
+    assert written["claim_class"] == "engine_toolchain_effect"
+    assert written["cells"][0]["state"] == 0.8
+
+
+def test_v2_void_cell_may_not_carry_numbers() -> None:
+    payload = _v2_payload(void=True, void_reason="no probe output")
+    with pytest.raises(HostPathError, match="void cell"):
+        validate_record(payload)
+    ok = _v2_payload(void=True, void_reason="no probe output", reach=None, state=None)
+    assert validate_record(ok)
+
+
+def test_v2_rejects_unknown_arm_and_missing_prereg() -> None:
+    with pytest.raises(HostPathError, match="illegal arm"):
+        validate_record(_v2_payload(arm="1game"))
+    payload = _v2_payload()
+    payload.pop("prereg_frozen_at")
+    with pytest.raises(HostPathError, match="prereg_frozen_at"):
+        validate_record(payload)
+
+
+def test_v2_requires_numeric_metrics_for_scored_cell() -> None:
+    with pytest.raises(HostPathError, match="numeric state"):
+        validate_record(_v2_payload(state=None))
+
+
+def test_v2_rejects_duplicate_cells() -> None:
+    payload = _v2_payload()
+    payload["cells"] = payload["cells"] * 2
+    with pytest.raises(HostPathError, match="duplicate cell"):
+        validate_record(payload)
