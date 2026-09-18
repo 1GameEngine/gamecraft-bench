@@ -20,6 +20,7 @@ from typing import Any, Iterable
 
 PROBE_SCHEMA_VERSION = 1
 _LINE_RE = re.compile(r"\{.*?\"probe\"\s*:\s*1.*\}")
+_DROPPED_RE = re.compile(r"\"consoleDroppedByLimit\"\s*:\s*(\d+)")
 
 
 class ProbeError(ValueError):
@@ -132,6 +133,17 @@ def parse_probe_lines(text: str) -> list[ProbeEvent]:
         flags = payload.get("flags")
         events.append(ProbeEvent(beat=beat, flags=flags if isinstance(flags, dict) else {}))
     return events
+
+
+def dropped_probe_lines(log_text: str) -> int:
+    """Worker console lines the 1Game CLI discarded at its per-step limit.
+
+    Only the 1Game arms can lose lines this way; Godot probe lines go straight
+    to process stdout with no cap. A dropped line looks exactly like a beat the
+    game never reached, so silently scoring it would charge an instrument
+    failure to the runtime under test.
+    """
+    return sum(int(n) for n in _DROPPED_RE.findall(log_text))
 
 
 def load_probe_schema(path: Path) -> dict[str, Any]:
@@ -259,6 +271,13 @@ def evaluate_run(
         return RunOutcome(
             build_ok=True, launch_ok=False, void=True,
             void_reason="no demo logs captured", demos=(), beat_ids=beat_ids,
+        )
+    dropped = sum(dropped_probe_lines(text) for text in demo_logs.values())
+    if dropped:
+        return RunOutcome(
+            build_ok=True, launch_ok=True, void=True,
+            void_reason=f"console limit dropped {dropped} probe lines",
+            demos=(), beat_ids=beat_ids,
         )
     demos = tuple(
         evaluate_demo(demo_id, schema, text)

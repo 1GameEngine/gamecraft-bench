@@ -16,6 +16,7 @@ from gamecraft_bench.verifier.probe import (
     evaluate_output_dir,
     evaluate_run,
     load_probe_schema,
+    dropped_probe_lines,
     parse_probe_lines,
     split_build_launch,
     read_demo_logs,
@@ -287,3 +288,32 @@ def test_launch_failure_cell_is_not_void_and_scores_zero() -> None:
     assert outcome.launch_ok is False
     assert outcome.void is False
     assert outcome.reach == 0.0
+
+
+def test_dropped_console_lines_void_the_cell() -> None:
+    """A dropped line looks like an unreached beat; it must not be scored."""
+    log = "\n".join([
+        _line("title"),
+        '      "consoleDroppedByLimit": 3,',
+        _line("ending", ending="kept"),
+    ])
+    outcome = evaluate_run(schema=_MULTIPATH, build_ok=True, demo_logs={"01": log})
+    assert outcome.void is True
+    assert "dropped 3 probe lines" in outcome.void_reason
+    assert outcome.reach is None
+    assert outcome.state is None
+
+
+def test_zero_dropped_lines_score_normally() -> None:
+    log = "\n".join([
+        _line("title"),
+        '      "consoleDroppedByLimit": 0,',
+        _line("ending", ending="kept"),
+    ])
+    outcome = evaluate_run(schema=_MULTIPATH, build_ok=True, demo_logs={"01": log})
+    assert outcome.void is False
+    assert outcome.reach == 2 / 3
+
+
+def test_dropped_count_sums_across_steps() -> None:
+    assert dropped_probe_lines('"consoleDroppedByLimit": 2,\n"consoleDroppedByLimit": 5,') == 7
