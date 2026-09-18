@@ -23,9 +23,20 @@ ARMS = {
 }
 
 
-def cell_path(run_dir: Path, arm: str, repeat: int, model: str) -> Path:
+def cell_path(
+    run_dir: Path, arm: str, repeat: int, model: str, slug: str = ""
+) -> Path:
     safe_model = "".join(c if c.isalnum() or c in "-_" else "-" for c in model)
-    return Path(run_dir) / "cells" / f"{arm}-r{repeat}-{safe_model}.json"
+    prefix = f"{slug}-" if slug else ""
+    return Path(run_dir) / "cells" / f"{prefix}{arm}-r{repeat}-{safe_model}.json"
+
+
+def project_dir(run_dir: Path, arm: str, *, slug: str, repeat: int) -> Path:
+    return Path(run_dir) / "projects" / slug / arm / f"r{repeat}"
+
+
+def record_dir(run_dir: Path, arm: str, *, slug: str, repeat: int) -> Path:
+    return Path(run_dir) / "record" / slug / arm / f"r{repeat}"
 
 
 def record_cell(
@@ -34,13 +45,15 @@ def record_cell(
     arm: str,
     rubric: Path,
     python_bin: str = sys.executable,
+    slug: str = "visualnovel-keepsake",
+    repeat: int = 1,
 ) -> Path:
-    """Replay the arm's traces into ``<run_dir>/record/<arm>``."""
+    """Replay the arm's traces into ``<run_dir>/record/<slug>/<arm>/r<n>``."""
     if arm not in ARMS:
         raise HostPathError(f"unknown arm {arm!r}")
     run_dir = Path(run_dir)
-    project = run_dir / "projects" / arm
-    output = run_dir / "record" / arm
+    project = project_dir(run_dir, arm, slug=slug, repeat=repeat)
+    output = record_dir(run_dir, arm, slug=slug, repeat=repeat)
     cmd = [
         python_bin, "-m", "gamecraft_bench.verifier",
         "--project", str(project),
@@ -64,11 +77,12 @@ def score_cell(
     repeat: int,
     model: str,
     probe_schema: Path,
+    slug: str = "visualnovel-keepsake",
 ) -> dict[str, Any]:
-    output = Path(run_dir) / "record" / arm
+    output = record_dir(run_dir, arm, slug=slug, repeat=repeat)
     cell = evaluate_output_dir(output, probe_schema)
-    cell.update({"arm": arm, "repeat": repeat, "model": model})
-    dest = cell_path(run_dir, arm, repeat, model)
+    cell.update({"arm": arm, "repeat": repeat, "model": model, "slug": slug})
+    dest = cell_path(run_dir, arm, repeat, model, slug=slug)
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(json.dumps(cell, indent=2) + "\n")
     return cell
@@ -92,7 +106,8 @@ def assemble(
             for k in (
                 "arm", "repeat", "model", "build_ok", "launch_ok",
                 "void", "void_reason", "reach", "state",
-                "still_source", "trace_author",
+                "still_source", "trace_author", "slug",
+                "contaminated", "contamination_reason",
             )
             if k in raw
         }
@@ -155,13 +170,20 @@ def main(argv: list[str] | None = None) -> int:
             parser.error(f"--{required.replace('_', '-')} is required")
 
     if not args.skip_record:
-        record_cell(run_dir=args.run_dir, arm=args.arm, rubric=args.rubric)
+        record_cell(
+            run_dir=args.run_dir,
+            arm=args.arm,
+            rubric=args.rubric,
+            slug=args.slug,
+            repeat=args.repeat,
+        )
     cell = score_cell(
         run_dir=args.run_dir,
         arm=args.arm,
         repeat=args.repeat,
         model=args.model,
         probe_schema=args.probe,
+        slug=args.slug,
     )
     print(json.dumps({k: cell[k] for k in
                       ("arm", "build_ok", "launch_ok", "void", "reach", "state")

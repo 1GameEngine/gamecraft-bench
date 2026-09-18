@@ -67,11 +67,15 @@ def run(
     rubric: Path,
     probe_schema: Path,
     repeats: int = 3,
+    slug: str = "visualnovel-keepsake",
 ) -> dict[str, Any]:
     schema = load_probe_schema(probe_schema)
     signatures = []
     for i in range(repeats):
-        output = record_cell(run_dir=run_dir, arm=arm, rubric=rubric)
+        output = record_cell(
+            run_dir=run_dir, arm=arm, rubric=rubric,
+            slug=slug, repeat=1,
+        )
         signatures.append(beat_signature(output, schema))
         keep = Path(run_dir) / "stability" / arm
         keep.mkdir(parents=True, exist_ok=True)
@@ -96,6 +100,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--rubric", type=Path, required=True)
     parser.add_argument("--probe", type=Path, required=True)
     parser.add_argument("--repeats", type=int, default=3)
+    parser.add_argument("--slug", default="visualnovel-keepsake")
     args = parser.parse_args(argv)
 
     report = run(
@@ -104,6 +109,7 @@ def main(argv: list[str] | None = None) -> int:
         rubric=args.rubric,
         probe_schema=args.probe,
         repeats=args.repeats,
+        slug=args.slug,
     )
     print(json.dumps(report, indent=2, default=str))
     return 0 if report["stable"] else 1

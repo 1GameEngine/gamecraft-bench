@@ -32,13 +32,13 @@ def _run_dir(tmp_path: Path) -> Path:
 
 
 def _write_record(run: Path, arm: str, lines: list[dict], build_ok: bool = True) -> Path:
-    logs = run / "record" / arm / "demos" / "01" / "logs"
+    logs = run / "record" / "visualnovel-keepsake" / arm / "r1" / "demos" / "01" / "logs"
     logs.mkdir(parents=True)
     (logs / "godot.log").write_text("\n".join(json.dumps(x) for x in lines))
-    (run / "record" / arm / "breakdown.json").write_text(
+    (run / "record" / "visualnovel-keepsake" / arm / "r1" / "breakdown.json").write_text(
         json.dumps({"build_ok": build_ok, "still_source": "x11_post_event"})
     )
-    return run / "record" / arm
+    return run / "record" / "visualnovel-keepsake" / arm / "r1"
 
 
 def test_score_cell_writes_named_file(tmp_path: Path) -> None:
@@ -58,7 +58,7 @@ def test_score_cell_writes_named_file(tmp_path: Path) -> None:
     )
     assert cell["state"] == 1.0
     assert cell["arm"] == "godot"
-    assert cell_path(run, "godot", 1, "agent-x").is_file()
+    assert cell_path(run, "godot", 1, "agent-x", slug="visualnovel-keepsake").is_file()
 
 
 def test_assemble_produces_promotable_payload(tmp_path: Path) -> None:
