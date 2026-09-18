@@ -1,0 +1,59 @@
+{
+  "probe_schema_version": 1,
+  "slug": "strategy-towerdefense",
+  "notes": "Engine-neutral beats for the v2 engine-toolchain comparison. Both arms implement the same stdout contract; Harbor rubric.json is untouched. Victory and defeat live on different traces; scoring unions beats across the run's demos.",
+  "beats": [
+    {
+      "id": "title",
+      "assert": {
+        "deployed": { "eq": 0 },
+        "wave": { "eq": 0 },
+        "outcome": { "not_null": false }
+      }
+    },
+    {
+      "id": "deploy_first",
+      "assert": {
+        "deployed": { "min": 1 },
+        "outcome": { "not_null": false }
+      }
+    },
+    {
+      "id": "deploy_refused",
+      "assert": {
+        "base": { "min": 1 },
+        "outcome": { "not_null": false }
+      }
+    },
+    {
+      "id": "wave_cleared",
+      "assert": {
+        "wave": { "min": 1 },
+        "deployed": { "min": 1 },
+        "base": { "min": 1 }
+      }
+    },
+    {
+      "id": "wave_later",
+      "assert": {
+        "wave": { "min": 2 },
+        "outcome": { "not_null": false }
+      }
+    },
+    {
+      "id": "defeat",
+      "assert": {
+        "base": { "eq": 0 },
+        "outcome": { "in": ["defeat"] }
+      }
+    },
+    {
+      "id": "victory",
+      "assert": {
+        "outcome": { "in": ["victory"] },
+        "wave": { "min": 2 },
+        "base": { "min": 1 }
+      }
+    }
+  ]
+}
