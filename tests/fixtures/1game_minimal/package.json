@@ -1,0 +1,13 @@
+{
+  "name": "gamecraft-1game-minimal",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "1game build"
+  },
+  "dependencies": {
+    "@1game/engine-bundle": "1.21.0",
+    "solid-js": "1.9.0"
+  }
+}

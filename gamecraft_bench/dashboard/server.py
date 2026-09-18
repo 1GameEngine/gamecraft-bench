@@ -10,14 +10,29 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from gamecraft_bench.verifier.host_paths import HostPathError, resolve_jobs_root
+
 from .manager import SessionManager
 
 NOVNC_DIR = Path("/usr/share/novnc")
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-JOBS_ROOT = Path(
-    os.environ.get("GAMECRAFT_BENCH_JOBS_ROOT")
-    or (_REPO_ROOT.parent / "gamecraft-bench-jobs")
-)
+
+
+def _jobs_root() -> Path:
+    raw = os.environ.get("GAMECRAFT_BENCH_JOBS_ROOT") or (
+        _REPO_ROOT.parent / "gamecraft-bench-jobs"
+    )
+    return resolve_jobs_root(raw)
+
+
+try:
+    JOBS_ROOT = _jobs_root()
+except HostPathError:
+    # Import must succeed for unit tests; list_trials still refuses $HOME.
+    JOBS_ROOT = Path(
+        os.environ.get("GAMECRAFT_BENCH_JOBS_ROOT")
+        or (_REPO_ROOT.parent / "gamecraft-bench-jobs")
+    )
 
 app = FastAPI()
 mgr = SessionManager()
@@ -32,7 +47,11 @@ app.mount("/novnc", StaticFiles(directory=str(NOVNC_DIR)), name="novnc")
 
 @app.get("/api/trials")
 def list_trials():
-    return mgr.list_trials(JOBS_ROOT)
+    try:
+        root = resolve_jobs_root(JOBS_ROOT)
+    except HostPathError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+    return mgr.list_trials(root)
 
 
 @app.post("/api/sessions")

@@ -17,8 +17,10 @@ Side effects:
 - Writes ``<output>/ctrf.json`` — minimal CTRF report so existing pytest-based
   test runners can show this run alongside others.
 
-Exit status mirrors reward thresholding: ``0`` if reward >= ``--pass-threshold``
-(default 0.5), ``1`` otherwise. Hard internal failures still raise.
+Exit status: ``0`` if reward >= ``--pass-threshold`` (default 0.5), ``1``
+otherwise, ``2`` on host infra errors (missing 1gameplay, judge
+hard-failure). Infra failures do not write ``reward.txt``. Harbor
+``test.sh`` is unchanged: if reward.txt is missing it still writes 0.
 """
 
 from __future__ import annotations
@@ -30,7 +32,15 @@ from pathlib import Path
 
 from .. import config as cfg
 from .judges import get_judge
-from .score import ScoreResult, score_project
+from .host_paths import HostPathError, assert_not_ledger_write
+from .score import (
+    InfraError,
+    ScoreResult,
+    detect_engine,
+    judge_hard_failed,
+    score_project,
+    scores_are_comparable,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -38,8 +48,10 @@ def main(argv: list[str] | None = None) -> int:
         prog="python -m gamecraft_bench.verifier",
         description="Replay demo traces and score the recordings against a rubric.",
     )
-    parser.add_argument("--project", type=Path, required=True,
-                        help="Path to the Godot project directory.")
+    parser.add_argument(
+        "--project", type=Path, required=True,
+        help="Path to the game project directory (Godot or 1Game).",
+    )
     parser.add_argument("--rubric", type=Path, required=True,
                         help="Path to the rubric JSON file.")
     parser.add_argument("--output", type=Path, required=True,
@@ -70,41 +82,86 @@ def main(argv: list[str] | None = None) -> int:
                              "Defaults to the rubric's max_demos, falling back to 10.")
     parser.add_argument("--pass-threshold", type=float, default=0.5,
                         help="Reward >= threshold => exit 0 (default: 0.5).")
+    parser.add_argument(
+        "--engine",
+        choices=("auto", "godot", "1game"),
+        default="auto",
+        help="Runtime. auto/godot: always Godot (Harbor identity). "
+             "1Game only with exclusive --engine 1game. Does not read env.",
+    )
     args = parser.parse_args(argv)
 
-    args.output.mkdir(parents=True, exist_ok=True)
+    try:
+        args.output = assert_not_ledger_write(args.output)
+    except HostPathError as exc:
+        print(f"[verifier] path error: {exc}", flush=True)
+        return 2
 
-    judge = get_judge(backend=args.judge, model=args.judge_model)
+    args.output.mkdir(parents=True, exist_ok=True)
 
     print(f"[verifier] project   = {args.project}", flush=True)
     print(f"[verifier] rubric    = {args.rubric}", flush=True)
     print(f"[verifier] output    = {args.output}", flush=True)
-    print(f"[verifier] judge     = {type(judge).__name__}(model={judge.model!r})",
-          flush=True)
     print(f"[verifier] godot_bin = {cfg.GODOT_BIN}", flush=True)
+    print(f"[verifier] engine    = {args.engine}", flush=True)
+    print(f"[verifier] 1gameplay = {cfg.ONEGAMEPLAY_BIN}", flush=True)
 
-    result = score_project(
-        project_dir=args.project,
-        rubric_path=args.rubric,
-        output_dir=args.output,
-        judge=judge,
-        fps=args.fps,
-        viewport=(args.width, args.height),
-        record_size=(args.record_width, args.record_height),
-        frame_interval_seconds=args.frame_interval_seconds,
-        max_demo_seconds=args.max_demo_seconds,
-        max_demos=args.max_demos,
-    )
+    engine_kw = None if args.engine == "auto" else args.engine
+    try:
+        # Infra (missing 1gameplay) must not depend on constructing a judge.
+        resolved = detect_engine(Path(args.project).resolve(), engine_kw)
+        if resolved == "1game" and (not cfg.ONEGAMEPLAY_BIN or not cfg.ONEGAME_BIN):
+            raise InfraError(
+                "1Game project requires 1game and 1gameplay on PATH "
+                "(set GAMECRAFT_BENCH_ONEGAME_BIN / "
+                "GAMECRAFT_BENCH_ONEGAMEPLAY_BIN); this is not BUILD=0"
+            )
+        judge = get_judge(backend=args.judge, model=args.judge_model)
+        print(
+            f"[verifier] judge     = {type(judge).__name__}(model={judge.model!r})",
+            flush=True,
+        )
+        result = score_project(
+            project_dir=args.project,
+            rubric_path=args.rubric,
+            output_dir=args.output,
+            judge=judge,
+            fps=args.fps,
+            viewport=(args.width, args.height),
+            record_size=(args.record_width, args.record_height),
+            frame_interval_seconds=args.frame_interval_seconds,
+            max_demo_seconds=args.max_demo_seconds,
+            max_demos=args.max_demos,
+            engine=engine_kw,
+        )
+    except InfraError as exc:
+        print(f"[verifier] infra error: {exc}", flush=True)
+        return 2
 
     _print_summary(result)
+    # Host 1Game: skip reward so judge/infra fail is not a published 0.
+    # Harbor (auto/godot): write reward.txt; test.sh may also fill 0.
+    if _judge_hard_failed(result) and result.engine == "1game":
+        print(
+            "[verifier] infra error: judge hard-failure is not a game-quality "
+            "0; not writing reward.txt (do not publish this 1Game run)",
+            flush=True,
+        )
+        _write_ctrf(args.output, result)
+        return 2
     _write_reward(args.output, result)
     _write_ctrf(args.output, result)
 
     return 0 if result.reward >= args.pass_threshold else 1
 
 
+def _judge_hard_failed(result: ScoreResult) -> bool:
+    return judge_hard_failed(result.errors)
+
+
 def _print_summary(result: ScoreResult) -> None:
     print("", flush=True)
+    print(f"[verifier] engine        = {result.engine}", flush=True)
     print(f"[verifier] reward        = {result.reward:.3f}", flush=True)
     print(f"[verifier] build_ok      = {result.build_ok}", flush=True)
     print(f"[verifier] num_demos     = {len(result.demos)}", flush=True)
@@ -166,11 +223,13 @@ def _write_ctrf(output_dir: Path, result: ScoreResult) -> None:
             "extra": {
                 "reward": result.reward,
                 "formula": result.formula,
+                "engine": result.engine,
                 "judge": {
                     "name": result.judge_name,
                     "model": result.judge_model,
                 },
                 "errors": result.errors,
+                "comparable": scores_are_comparable(result),
             },
         }
     }

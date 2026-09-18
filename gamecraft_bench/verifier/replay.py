@@ -34,6 +34,7 @@ import time
 from pathlib import Path
 
 from .. import config as cfg
+from .trace_format import scheduled_events
 
 _DEFAULT_GODOT_WINDOW_TIMEOUT_SECONDS = 45.0
 
@@ -68,6 +69,8 @@ class ReplayResult:
     output_mp4: Path
     duration_seconds: float
     godot_returncode: int
+    still_paths: tuple[Path, ...] = ()
+    still_source: str = ""
 
 
 def replay_trace(
@@ -119,13 +122,8 @@ def replay_trace(
             raise ReplayError(f"required tool not on PATH: {tool}")
 
     trace = json.loads(trace_path.read_text())
-    events = list(trace.get("events", []))
-    duration_frames = int(trace.get("duration_frames", 0))
+    events, replay_frames = scheduled_events(trace)
     scenario = trace.get("scenario")
-    replay_frames = max(
-        duration_frames,
-        *(int(ev["frame"]) for ev in events),
-    ) if events else duration_frames
     if replay_frames < 0:
         raise ReplayError(f"negative trace duration/frame in {trace_path}")
     trace_seconds = replay_frames / fps
@@ -237,6 +235,9 @@ def replay_trace(
         t0 = time.time()
         deadline = t0 + max_replay_seconds
         last_frame = 0
+        events_dir = output_mp4.parent / "events"
+        events_dir.mkdir(parents=True, exist_ok=True)
+        stills: list[Path] = []
         for ev in events:
             frame = int(ev["frame"])
             target = min(t0 + frame / fps, deadline)
@@ -247,6 +248,12 @@ def replay_trace(
                 )
             _post_event(ev, env, window_id=window_id)
             last_frame = max(last_frame, frame)
+            if str(ev.get("type", "")) not in ("wait", "mouse_move"):
+                # Two logic frames so the scene can paint before the still.
+                time.sleep(2.0 / fps)
+                dest = events_dir / f"event_{len(stills):04d}.png"
+                _grab_x11_still(display, (w, h), dest, env)
+                stills.append(dest)
 
         # 5. Hold for the rest of the requested duration (clamped).
         end_target = min(t0 + replay_frames / fps, deadline)
@@ -279,6 +286,8 @@ def replay_trace(
             # stalls on a loaded host.
             duration_seconds=trace_seconds,
             godot_returncode=godot_rc,
+            still_paths=tuple(stills),
+            still_source="x11_post_event",
         )
 
     finally:
@@ -609,3 +618,32 @@ def _normalize_keycode(keycode: object) -> str:
 def _xdotool(env: dict, *args: str) -> None:
     subprocess.run(["xdotool", *args], env=env, check=False,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def _grab_x11_still(
+    display: str,
+    viewport: tuple[int, int],
+    dest: Path,
+    env: dict,
+) -> None:
+    """Grab one native-viewport PNG from the replay X display. Not mp4 sample."""
+    w, h = viewport
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        "ffmpeg", "-y", "-loglevel", "error",
+        "-f", "x11grab",
+        "-video_size", f"{w}x{h}",
+        "-draw_mouse", "0",
+        "-i", display,
+        "-frames:v", "1",
+        str(dest),
+    ]
+    try:
+        proc = subprocess.run(
+            cmd, env=env, capture_output=True, timeout=15,
+        )
+    except subprocess.TimeoutExpired as e:
+        raise ReplayError(f"x11 still grab timed out: {dest}") from e
+    if proc.returncode != 0 or not dest.is_file() or dest.stat().st_size <= 0:
+        tail = (proc.stderr or proc.stdout or b"").decode(errors="replace")[-800:]
+        raise ReplayError(f"x11 still grab failed for {dest}: {tail}")

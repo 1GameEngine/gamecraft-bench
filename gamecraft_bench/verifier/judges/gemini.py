@@ -87,7 +87,7 @@ class GeminiJudge(MultimodalJudge):
                 model=self.model,
                 contents=[video_part, prompt],
                 config=genai_types.GenerateContentConfig(
-                    system_instruction=_common.SYSTEM_INSTRUCTION,
+                    system_instruction=_common.system_instruction(engine=request.engine),
                     response_mime_type="application/json",
                     max_output_tokens=_MAX_OUTPUT_TOKENS,
                 ),

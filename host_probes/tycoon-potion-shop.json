@@ -1,0 +1,62 @@
+{
+  "probe_schema_version": 1,
+  "slug": "tycoon-potion-shop",
+  "notes": "Engine-neutral beats for the v2 engine-toolchain comparison. Beats are scoped to what one cycle of the shop loop can show inside a 600-frame demo: a resource spent, a product made, a price set, a sale closed, a sale lost, the ledger paying out, and the day turning over. Both arms implement the same stdout contract; Harbor rubric.json is untouched.",
+  "beats": [
+    {
+      "id": "title",
+      "assert": {
+        "potions": { "eq": 0 },
+        "sold": { "eq": 0 },
+        "stock": { "min": 1 }
+      }
+    },
+    {
+      "id": "brew_started",
+      "assert": {
+        "stock": { "min": 0 }
+      }
+    },
+    {
+      "id": "potion_ready",
+      "assert": {
+        "potions": { "min": 1 },
+        "stock": { "min": 0 }
+      }
+    },
+    {
+      "id": "price_set",
+      "assert": {
+        "potions": { "min": 1 }
+      }
+    },
+    {
+      "id": "sale_closed",
+      "assert": {
+        "sold": { "min": 1 },
+        "gold": { "not_null": true }
+      }
+    },
+    {
+      "id": "sale_lost",
+      "assert": {
+        "sold": { "min": 0 },
+        "gold": { "not_null": true }
+      }
+    },
+    {
+      "id": "restock_bought",
+      "assert": {
+        "stock": { "min": 1 },
+        "gold": { "not_null": true }
+      }
+    },
+    {
+      "id": "day_advanced",
+      "assert": {
+        "gold": { "not_null": true },
+        "sold": { "min": 0 }
+      }
+    }
+  ]
+}

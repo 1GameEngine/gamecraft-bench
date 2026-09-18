@@ -1,0 +1,4 @@
+out/
+node_modules/
+*.1gamerecord
+*.1gamerecord.swp

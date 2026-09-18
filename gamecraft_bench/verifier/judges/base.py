@@ -37,6 +37,9 @@ class JudgeRequest:
     video_path: Path
     frame_paths: list[Path]
     requirements: list[RequirementSpec]
+    # Resolved runtime. Harbor identity (project.godot, no --engine) stays
+    # ``godot`` so the prompt still says "Godot 2D game". Host 1Game only.
+    engine: str = "godot"
 
 
 @dataclass(frozen=True)

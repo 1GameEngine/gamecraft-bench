@@ -37,3 +37,12 @@ testpaths = ["tasks"]
 # Only collect files explicitly named test_outputs.py inside task dirs;
 # avoids pytest scanning vendored Harbor task templates etc.
 python_files = ["test_outputs.py"]
+norecursedirs = [
+    "host_excerpt_ledger",
+    "gamecraft-host-runs",
+    "gamecraft-bench-jobs-compare",
+    ".git",
+    ".venv",
+    "dist",
+    "build",
+]

@@ -44,6 +44,18 @@ def _path_from_env(name: str, default: Path | None) -> Path | None:
 # when this is None or unresolvable.
 GODOT_BIN: str | None = _env("GAMECRAFT_BENCH_GODOT_BIN") or shutil.which("godot")
 
+# Host 1Game CLI binaries. Prefer the system install from setup_local.sh
+# (/usr/local/bin); never `pnpm exec 1gameplay`.
+ONEGAME_BIN: str | None = _env("GAMECRAFT_BENCH_ONEGAME_BIN") or shutil.which("1game")
+ONEGAMEPLAY_BIN: str | None = (
+    _env("GAMECRAFT_BENCH_ONEGAMEPLAY_BIN") or shutil.which("1gameplay")
+)
+# Where `1game build` / `1gameplay create` resolve `@1game/engine-bundle`.
+ONEGAME_NODE_MODULES: str = (
+    _env("GAMECRAFT_BENCH_ONEGAME_NODE_MODULES", "/opt/1game/node_modules")
+    or "/opt/1game/node_modules"
+)
+
 # Where LocalSubprocessEnvironment puts per-session sandbox dirs. Each trial
 # gets its own subdir (named after the session id). Cleaned up on stop().
 # When None, the env class places the runtime sandbox under /tmp while
@@ -160,6 +172,10 @@ def env_for_subprocess() -> dict[str, str]:
 
     The custom Harbor environment surfaces these into the agent / verifier
     process so test scripts can read them without any wiring.
+
+    Do not inject ``GAMECRAFT_BENCH_ENGINE``: Harbor ``test.sh`` never
+    passes ``--engine``, the verifier CLI does not read that var, and
+    ``detect_engine(auto)`` is always Godot.
     """
     e: dict[str, str] = {
         "GAME_PROJECT_PATH": GAME_PROJECT_PATH,

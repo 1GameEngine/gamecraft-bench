@@ -123,7 +123,24 @@ godot --version       # → 4.6.2.stable.official.71f334935
 
 If the direct link works for you, drop the `gh-proxy.com/` prefix.
 
-### 3. Python
+### 3. One-shot bootstrap (recommended)
+
+From the repo root, as a user with `sudo`:
+
+```bash
+./scripts/setup_local.sh
+```
+
+The script is idempotent. It installs the packages above, pins Godot 4.6.2 to
+`/opt/godot`, pins 1Game **1.21.0** (`1game` / `1gameplay` / `@1game/engine-bundle`)
+to `/opt/1game`, creates `.venv` with `uv`, installs this repo, and writes a
+`.env` from `.env.example` if missing (judge defaults to `stub` so Harbor
+smoke does not require API keys). Re-running leaves an existing `.env` alone.
+Node 20+ is required for 1Game (nvm Node 22 is used when present). After
+`1game init && pnpm install`, run `1game-pnpm-natives` (or `pnpm approve-builds --all && pnpm rebuild`)
+so `better-sqlite3` is built; otherwise prefer `/usr/local/bin/1gameplay`.
+
+### 4. Python (manual)
 
 ```bash
 git clone <this-repo> game-bench && cd game-bench
@@ -132,7 +149,7 @@ source .venv/bin/activate
 uv pip install -e .          # add --index-url https://pypi.tuna.tsinghua.edu.cn/simple if needed
 ```
 
-### 4. Local config
+### 5. Local config (manual)
 
 ```bash
 cp .env.example .env         # fill in API keys / paths if defaults aren't right
@@ -141,7 +158,7 @@ cp .env.example .env         # fill in API keys / paths if defaults aren't right
 `.env` holds judge API keys (`OPENAI_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, …),
 the path to the Godot binary, and any path overrides. All scripts under `scripts/` source it automatically.
 
-### 5. Asset libraries (optional but expected)
+### 6. Asset libraries (optional but expected)
 
 Tasks share two CC0 / permissive 2D asset pools, mounted read-only into each trial:
 
@@ -185,7 +202,29 @@ They source `.env`, pin the local agent implementation, forward the required API
 Claude Code / Codex-based wrappers require `--ak reasoning_effort=<low|medium|high>`.
 The Kimi wrapper passes `--ak thinking=true` by default.
 
-Job artifacts land under `$GAMECRAFT_BENCH_JOBS_ROOT` (default `../gamecraft-bench-jobs/<timestamp>/<task>__<id>/`).
+Job artifacts land under `$GAMECRAFT_BENCH_JOBS_ROOT` (default `../gamecraft-bench-jobs/<timestamp>/<task>__<id>/`). If that sibling path is not writable (typical for Cloud Agent `/workspace`), `scripts/run.sh` uses `$HOME/gamecraft-bench-jobs` instead. Do not put jobs under `/workspace` (trial overlay) or `/tmp` (private `/tmp` bind in the namespace), or verifier log symlinks will break.
+
+## Host `--project` scoring (Godot path + 1Game fixture)
+
+Harbor's 140 tasks remain Godot-only (`./scripts/run.sh --agent …`). For a **host** directory (no overlay), the verifier CLI honors `--project`:
+
+```bash
+unset PYTHONPATH
+cd "$HOME"   # do not run from /workspace (sys.path[0] would shadow the venv)
+python -m gamecraft_bench.verifier \
+  --project /abs/path/to/game \
+  --rubric  /abs/path/to/rubric.json \
+  --output  "$HOME/gamecraft-bench-jobs/canary/verifier" \
+  --judge stub
+```
+
+Harbor canary jobs use `$HOME/gamecraft-bench-jobs`. Host dual-run **stub smoke** belongs under `$HOME/gamecraft-host-runs/<experiment_id>/stub/{godot,1game}` (never nest under Harbor jobs; never set dashboard `JOBS_ROOT` to `$HOME` itself).
+
+`--engine auto` (default) is **always Godot** (Harbor identity). 1Game is **only** `--engine 1game` (host). That path **ignores** the rubric `godot --headless` command and runs `1game build` + `1gameplay create` + `step --surface display --flush --ms 16 --repeat 5` using `/usr/local/bin/1gameplay` and `NODE_PATH=/opt/1game/node_modules`. Missing `1gameplay` on `--engine 1game` exits 2 and does **not** write `reward.txt`. 1Game PLAY is a **timeline slideshow** (≤0.5s `step` slices, `--at last` screenshots, concat by `tickedTimeMs`) — not a last-frame still loop and **not** equivalent to Godot x11grab. Godot judge hard-fail still writes `reward.txt` (Harbor). 1Game judge hard-fail skips it. Host 1Game judge copy says “2D game”; Harbor auto keeps “Godot 2D game”. Compare output is a **host diagnostic JSON** (`python -m gamecraft_bench.verifier.compare` into `$HOME/gamecraft-bench-jobs-compare/`, not the Harbor jobs root): a **blocker dump**, not a publishable green or paper ranking. Overall / V/A / D3 are unpublished; diagnostic columns are M3/M4/D2/D4/D5 only.
+
+Two host claim classes exist and must never share a table. **v1** (`skills/gamecraft-host-dual-run/SKILL.md`) is a narrative product-stack diagnostic scored from PNG excerpts. **v2** (`protocol-v2.md`) is the engine-toolchain comparison: machine-checked probe metrics (BUILD / LAUNCH / REACH / STATE) from an engine-neutral stdout contract, three arms (`godot`, `1game_eco`, `1game_bare`), pre-registered matrix. Probe schemas live in `host_probes/<slug>.json`; score one cell with `python -m gamecraft_bench.verifier.probe --output <verifier-out> --probe host_probes/<slug>.json` (no judge involved).
+
+This is a **pipeline** path. `StubJudge` scores are not engine rankings and must not be compared to the table above. Host Dual Protocol packing lives in `skills/gamecraft-host-dual-run/` (`SKILL.md`, `packing.md`): USER is `keepsake-main.md` (same bytes both arms); appendices are system-only. Cursor PNG scores are a product-stack diagnostic (parent face: M3 split cards), not Harbor VLM, and must not be written to `reward.txt`. Stub 1Game first; skip Godot stub if dashboard Play may hold `:300`–`:307`. Default: do not spawn gens unless the user GO's a new `experiment_id`.
 
 ## Dashboard
 
@@ -202,7 +241,7 @@ Forward the port in VS Code (Ports panel), open `http://localhost:6090/`, then e
 - Click **Play** on a single trial, or
 - Tick the checkboxes on multiple trials and click **Compare** to open a grid view with one live noVNC iframe per game (auto-laid-out 2/3/4 columns). Each cell has its own Refresh / Stop button and is fully interactive.
 
-Architecture: a session pool of up to 8 X displays (`:300`–`:307`, disjoint from the verifier's `:99`–`:199` range), each backing a dedicated Xvfb + Godot + x11vnc trio. The FastAPI app serves noVNC's static files at `/novnc/` and bridges browser WebSocket frames to x11vnc TCP at `/ws/{sid}`. Closing the browser tab fires `navigator.sendBeacon` to free the slot.
+Architecture: a session pool of up to 8 X displays (`:300`–`:307`, **no flock**), each backing a dedicated Xvfb + Godot + x11vnc trio. Live verifier Xvfb is `:200`–`:500` (`GAMECRAFT_BENCH_XVFB_DISPLAY_START` / `END`) and **overlaps** dashboard `:300`–`:307` — serialize Godot Play vs verifier. (Older docs that claimed verifier `:99`–`:199` are false; `tools/screenshot.sh` still scans `:99`–`:250` with no lock and is not the verifier path.) The FastAPI app serves noVNC's static files at `/novnc/` and bridges browser WebSocket frames to x11vnc TCP at `/ws/{sid}`. Closing the browser tab fires `navigator.sendBeacon` to free the slot.
 
 ## Adding a task
 

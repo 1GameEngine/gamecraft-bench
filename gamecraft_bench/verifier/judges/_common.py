@@ -32,6 +32,19 @@ SYSTEM_INSTRUCTION = (
 )
 
 
+def system_instruction(*, engine: str = "godot") -> str:
+    """Harbor Godot keeps ``SYSTEM_INSTRUCTION``. Host 1Game is engine-neutral."""
+    if (engine or "godot").strip().lower() == "1game":
+        return SYSTEM_INSTRUCTION.replace("a Godot 2D game", "a 2D game")
+    return SYSTEM_INSTRUCTION
+
+
+def playthrough_noun(*, engine: str = "godot") -> str:
+    if (engine or "godot").strip().lower() == "1game":
+        return "2D game"
+    return "Godot 2D game"
+
+
 def build_user_prompt(requirements: list[RequirementSpec]) -> str:
     """Return the user-facing prompt for one demo's batch of requirements.
 
@@ -153,15 +166,26 @@ def _extract_json_object(text: str) -> str | None:
 
 
 def require_env(*candidates: str) -> str:
-    """Return the first non-empty env var among ``candidates``.
+    """Return the first non-empty, non-placeholder env var among ``candidates``.
 
     Raises ``KeyError`` (with a list of names tried) if none set. Backends
     catch this and convert to ``JudgeError``."""
     for name in candidates:
         v = os.environ.get(name)
-        if v:
+        if v and not is_placeholder_secret(v):
             return v
     raise KeyError(f"none of {candidates} set in environment")
+
+
+def is_placeholder_secret(value: str) -> bool:
+    s = (value or "").strip().lower()
+    if not s:
+        return True
+    return (
+        s.startswith("your_")
+        or s.endswith("_here")
+        or s in {"changeme", "todo", "xxx", "placeholder"}
+    )
 
 
 def get_env(name: str, default: str | None = None) -> str | None:

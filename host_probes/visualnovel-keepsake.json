@@ -1,0 +1,46 @@
+{
+  "probe_schema_version": 1,
+  "slug": "visualnovel-keepsake",
+  "notes": "Engine-neutral beats for the v2 engine-toolchain comparison. Both arms implement the same stdout contract; Harbor rubric.json is untouched.",
+  "beats": [
+    {
+      "id": "title",
+      "assert": {
+        "collected": { "eq": 0 },
+        "ending": { "not_null": false }
+      }
+    },
+    {
+      "id": "examine_first",
+      "assert": {
+        "collected": { "min": 1 }
+      }
+    },
+    {
+      "id": "examine_second",
+      "assert": {
+        "collected": { "min": 2 }
+      }
+    },
+    {
+      "id": "gate_locked",
+      "assert": {
+        "gate": { "in": ["locked", "blocked"] },
+        "ending": { "not_null": false }
+      }
+    },
+    {
+      "id": "gate_open",
+      "assert": {
+        "gate": { "eq": "open" },
+        "collected": { "min": 2 }
+      }
+    },
+    {
+      "id": "ending",
+      "assert": {
+        "ending": { "not_null": true }
+      }
+    }
+  ]
+}

@@ -105,7 +105,7 @@ class ClaudeJudge(MultimodalJudge):
             msg = client.messages.create(
                 model=self.model,
                 max_tokens=_MAX_TOKENS,
-                system=_common.SYSTEM_INSTRUCTION,
+                system=_common.system_instruction(engine=request.engine),
                 messages=[{"role": "user", "content": content}],
             )
         except Exception as e:

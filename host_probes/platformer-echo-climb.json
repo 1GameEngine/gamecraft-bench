@@ -1,0 +1,63 @@
+{
+  "probe_schema_version": 1,
+  "slug": "platformer-echo-climb",
+  "notes": "Engine-neutral beats for the v2 engine-toolchain comparison. Beats read discrete climb state the game already tracks (attempt started, marker passed, slide, fall recorded, gap crossed, ledge frozen), never frame-exact positions. Both arms implement the same stdout contract; Harbor rubric.json is untouched.",
+  "beats": [
+    {
+      "id": "title",
+      "assert": {
+        "attempts": { "eq": 0 },
+        "marker": { "not_null": false }
+      }
+    },
+    {
+      "id": "climb_start",
+      "assert": {
+        "attempts": { "min": 1 },
+        "marker": { "not_null": false }
+      }
+    },
+    {
+      "id": "wall_slide",
+      "assert": {
+        "attempts": { "min": 1 }
+      }
+    },
+    {
+      "id": "marker_reached",
+      "assert": {
+        "attempts": { "min": 1 },
+        "marker": { "not_null": true }
+      }
+    },
+    {
+      "id": "gap_blocked",
+      "assert": {
+        "gate": { "in": ["blocked", "locked"] },
+        "marker": { "not_null": true }
+      }
+    },
+    {
+      "id": "fall_recorded",
+      "assert": {
+        "attempts": { "min": 1 },
+        "ghosts": { "min": 1 }
+      }
+    },
+    {
+      "id": "ghost_assist",
+      "assert": {
+        "gate": { "eq": "open" },
+        "ghosts": { "min": 1 },
+        "marker": { "not_null": true }
+      }
+    },
+    {
+      "id": "solidify",
+      "assert": {
+        "attempts": { "min": 1 },
+        "ghosts": { "min": 1 }
+      }
+    }
+  ]
+}

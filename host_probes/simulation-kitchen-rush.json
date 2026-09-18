@@ -1,0 +1,55 @@
+{
+  "probe_schema_version": 1,
+  "slug": "simulation-kitchen-rush",
+  "notes": "Engine-neutral beats for the v2 engine-toolchain comparison. Both arms implement the same stdout contract; Harbor rubric.json is untouched. Real-time slug: every assertion reads a tally the game moves when it handles an input or resolves an outcome, so replay speed cannot shift a pass into a fail.",
+  "beats": [
+    {
+      "id": "title",
+      "assert": {
+        "stage": { "in": ["title", "menu"] },
+        "served": { "eq": 0 }
+      }
+    },
+    {
+      "id": "shift_start",
+      "assert": {
+        "stage": { "in": ["kitchen", "shift"] },
+        "steps": { "min": 0 }
+      }
+    },
+    {
+      "id": "prep_step",
+      "assert": {
+        "steps": { "min": 1 }
+      }
+    },
+    {
+      "id": "order_served",
+      "assert": {
+        "served": { "min": 1 },
+        "steps": { "min": 1 }
+      }
+    },
+    {
+      "id": "order_lost",
+      "assert": {
+        "lost": { "min": 1 },
+        "stage": { "in": ["kitchen", "shift"] }
+      }
+    },
+    {
+      "id": "shift_summary",
+      "assert": {
+        "stage": { "in": ["summary", "results"] },
+        "served": { "min": 0 },
+        "lost": { "min": 0 }
+      }
+    },
+    {
+      "id": "shop",
+      "assert": {
+        "stage": { "in": ["shop", "upgrade"] }
+      }
+    }
+  ]
+}

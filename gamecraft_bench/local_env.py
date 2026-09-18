@@ -396,12 +396,37 @@ class LocalSubprocessEnvironment(BaseEnvironment):
         """
         steps: list[str] = ["mount --make-rprivate /"]
 
-        # 1. Top-level container paths: pre-create as host dirs (idempotent
-        #    across trials), then bind sandbox subdirs onto them. The
-        #    `mkdir -p` leaves an empty dir on the host fs; the bind
-        #    overlays it inside the ns. Sources that don't exist yet in
-        #    the sandbox are skipped — preserves the agent-phase
-        #    invisibility of /tests and /solution.
+        # Shared tools/assets often live under the git checkout. Cloud Agent
+        # checkouts are /workspace, the same path we overlay with the trial
+        # sandbox — so bind those sources to a staging dir *before* the
+        # overlay, then attach the stage onto the container mountpoint.
+        # Staging lives in the runtime sandbox (under /tmp/...); /tmp is
+        # overlaid last so the stage path stays visible until then.
+        stage_root = self._sandbox / "_host_stage"
+        staged: list[tuple[str, str]] = []
+        for cfg_src, target in (
+            (config.ASSET_LIBRARY,     config.ASSET_LIBRARY_MOUNTPOINT),
+            (config.OGA_LIBRARY,       config.OGA_LIBRARY_MOUNTPOINT),
+            (config.TOOLS_DIR,         config.TOOLS_MOUNTPOINT),
+        ):
+            if cfg_src is None:
+                continue
+            src = str(cfg_src.resolve())
+            if src == "/workspace" or src.startswith("/workspace/"):
+                stage = stage_root / target.strip("/").replace("/", "_")
+                stage.mkdir(parents=True, exist_ok=True)
+                steps.append(f"mkdir -p {shlex.quote(str(stage))}")
+                steps.append(
+                    f"mount --bind {shlex.quote(src)} {shlex.quote(str(stage))}"
+                )
+                staged.append((str(stage), target))
+            else:
+                staged.append((src, target))
+
+        # Top-level container paths: pre-create as host dirs (idempotent
+        # across trials), then bind sandbox subdirs onto them. Sources that
+        # don't exist yet in the sandbox are skipped — preserves the
+        # agent-phase invisibility of /tests and /solution.
         for sub, target in self._BIND_PLAN:
             src = self._workspace_host if sub == "workspace" else self._sandbox / sub
             steps.append(f"mkdir -p {shlex.quote(target)}")
@@ -411,36 +436,22 @@ class LocalSubprocessEnvironment(BaseEnvironment):
                 f"mount --bind {shlex.quote(str(src))} {shlex.quote(target)}"
             )
 
-        # 2. Per-trial private /tmp. Keep the backing dir off the job tree:
-        #    Xvfb creates UNIX sockets under /tmp/.X11-unix, and putting
-        #    those sockets on the job tree's FUSE/quarkfs backing store can
-        #    make stat/probe calls hang.
-        self._runtime_tmp.mkdir(parents=True, exist_ok=True)
-        steps.append(f"mount --bind {shlex.quote(str(self._runtime_tmp))} /tmp")
-
-        # NOTE: godot user:// isolation is handled via XDG_DATA_HOME in
-        # the merged env (see exec()), not via a bind mount. Earlier we
-        # bound a per-trial dir over /root/.local/share/godot, but that
-        # required hard-coding HOME=/root and only worked because the
-        # venv's uv-managed python lives elsewhere under /root. The XDG
-        # env var route works for any user/HOME and doesn't shadow
-        # anything on disk.
-
-        # 3. Shared read-only assets / tools. These mountpoints may live
-        #    inside an already-bound dir (e.g. /workspace/assets/library
-        #    inside the just-bound /workspace), so the mkdir must run
-        #    AFTER the parent bind.
-        for cfg_src, target in (
-            (config.ASSET_LIBRARY,     config.ASSET_LIBRARY_MOUNTPOINT),
-            (config.OGA_LIBRARY,       config.OGA_LIBRARY_MOUNTPOINT),
-            (config.TOOLS_DIR,         config.TOOLS_MOUNTPOINT),
-        ):
-            if cfg_src is None:
-                continue
+        # Attach staged tools/assets after /workspace exists so nested
+        # mountpoints like /workspace/assets/library can be created.
+        for stage_src, target in staged:
             steps.append(f"mkdir -p {shlex.quote(target)}")
             steps.append(
-                f"mount --bind -o ro {shlex.quote(str(cfg_src.resolve()))} {shlex.quote(target)}"
+                f"mount --bind {shlex.quote(stage_src)} {shlex.quote(target)}"
             )
+            # Grouped so `|| true` cannot skip later `&&` steps.
+            steps.append(
+                f"(mount -o remount,bind,ro {shlex.quote(target)} || true)"
+            )
+
+        # Per-trial private /tmp last. Xvfb UNIX sockets under /tmp/.X11-unix
+        # hang if they land on FUSE/quarkfs job trees.
+        self._runtime_tmp.mkdir(parents=True, exist_ok=True)
+        steps.append(f"mount --bind {shlex.quote(str(self._runtime_tmp))} /tmp")
 
         steps.append(f"cd {shlex.quote(inner_cwd)}")
         # Use `eval` rather than `exec` because the caller's command may
@@ -454,6 +465,68 @@ class LocalSubprocessEnvironment(BaseEnvironment):
             "unshare", "--user", "--map-root-user", "--mount",
             "bash", "-c", bind_script,
         ]
+
+    @staticmethod
+    def _path_survives_workspace_overlay(path: str) -> str | None:
+        """Resolve host symlinks so a path still exists after /workspace is
+        bind-mounted over the git checkout (Cloud Agent default).
+        """
+        if not path:
+            return None
+        try:
+            real = str(Path(path).resolve())
+        except OSError:
+            real = path
+        if real == "/workspace" or real.startswith("/workspace/"):
+            return None
+        return real
+
+    def _rewrite_env_hidden_by_workspace_overlay(self, merged_env: dict[str, str]) -> None:
+        """Drop or retarget env paths that the /workspace overlay would hide.
+
+        ``PYTHONPATH=/workspace`` and ``PATH=.../workspace/.venv/bin`` are
+        correct on the host and wrong inside the trial namespace.
+        """
+        path = merged_env.get("PATH", "")
+        kept_path: list[str] = []
+        for part in path.split(":"):
+            if not part:
+                continue
+            if part == "/workspace" or part.startswith("/workspace/"):
+                surviving = self._path_survives_workspace_overlay(part)
+                if surviving:
+                    kept_path.append(surviving)
+                continue
+            kept_path.append(part)
+        merged_env["PATH"] = ":".join(kept_path)
+
+        py_path = merged_env.get("PYTHONPATH")
+        if py_path:
+            kept_py: list[str] = []
+            for part in py_path.split(":"):
+                if not part:
+                    continue
+                if part == "/workspace" or part.startswith("/workspace/"):
+                    surviving = self._path_survives_workspace_overlay(part)
+                    if surviving:
+                        kept_py.append(surviving)
+                    continue
+                kept_py.append(part)
+            if kept_py:
+                merged_env["PYTHONPATH"] = ":".join(kept_py)
+            else:
+                merged_env.pop("PYTHONPATH", None)
+
+        for key in ("VIRTUAL_ENV", "GAMECRAFT_BENCH_PYTEST_BIN", "GAMECRAFT_BENCH_GODOT_BIN"):
+            val = merged_env.get(key)
+            if not val:
+                continue
+            if val == "/workspace" or val.startswith("/workspace/"):
+                surviving = self._path_survives_workspace_overlay(val)
+                if surviving:
+                    merged_env[key] = surviving
+                else:
+                    merged_env.pop(key, None)
 
     async def exec(
         self,
@@ -483,6 +556,7 @@ class LocalSubprocessEnvironment(BaseEnvironment):
         merged_env["XDG_DATA_HOME"] = str(xdg_data)
         if env:
             merged_env.update(env)
+        self._rewrite_env_hidden_by_workspace_overlay(merged_env)
 
         argv = self._build_ns_command(command, inner_cwd)
         self.logger.debug("exec> %s (cwd=%s)", self._short(command), inner_cwd)
