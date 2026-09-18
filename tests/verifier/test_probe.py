@@ -193,3 +193,55 @@ def test_read_demo_logs_merges_engine_logs(tmp_path: Path) -> None:
     assert "01" in collected
     assert "title" in collected["01"]
     assert "1game chatter" in collected["01"]
+
+
+_MULTIPATH = {
+    "probe_schema_version": 1,
+    "slug": "t",
+    "beats": [
+        {"id": "title", "assert": {}},
+        {"id": "gate_locked", "assert": {"gate": {"eq": "locked"}}},
+        {"id": "ending", "assert": {"ending": {"not_null": True}}},
+    ],
+}
+
+
+def _line(beat: str, **flags) -> str:
+    return json.dumps({"probe": 1, "beat": beat, "flags": flags})
+
+
+def test_beats_are_task_requirements_not_per_trace() -> None:
+    """A locked-gate trace is not supposed to reach the ending."""
+    outcome = evaluate_run(
+        schema=_MULTIPATH,
+        build_ok=True,
+        demo_logs={
+            "locked": "\n".join([_line("title"), _line("gate_locked", gate="locked")]),
+            "ending": "\n".join([_line("title"), _line("ending", ending="kept")]),
+        },
+    )
+    assert outcome.reach == 1.0
+    assert outcome.state == 1.0
+
+
+def test_state_counts_a_beat_failed_wherever_it_failed() -> None:
+    outcome = evaluate_run(
+        schema=_MULTIPATH,
+        build_ok=True,
+        demo_logs={
+            "good": "\n".join([_line("title"), _line("gate_locked", gate="locked")]),
+            "bad": "\n".join([_line("title"), _line("gate_locked", gate="open")]),
+        },
+    )
+    assert outcome.reach == 2 / 3
+    assert outcome.state == 0.5
+
+
+def test_unreached_beats_do_not_dilute_state() -> None:
+    outcome = evaluate_run(
+        schema=_MULTIPATH,
+        build_ok=True,
+        demo_logs={"only": _line("title")},
+    )
+    assert outcome.reach == 1 / 3
+    assert outcome.state == 1.0

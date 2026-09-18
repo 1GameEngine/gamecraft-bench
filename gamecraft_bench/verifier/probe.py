@@ -71,13 +71,43 @@ class RunOutcome:
     void_reason: str
     demos: tuple[DemoOutcome, ...]
 
+    beat_ids: tuple[str, ...] = ()
+
+    def _union(self) -> tuple[set[str], set[str]]:
+        """Beats reached anywhere, and beats that failed wherever reached.
+
+        Beats are task requirements, not per-trace requirements: a locked-gate
+        trace is not supposed to reach the ending. Scoring per demo would cap
+        every arm below 1.0 and move the denominator with the number of traces
+        a generator happened to ship, which is not comparable across arms.
+        """
+        reached: set[str] = set()
+        failed: set[str] = set()
+        for demo in self.demos:
+            for beat in demo.beats:
+                if not beat.seen:
+                    continue
+                reached.add(beat.beat_id)
+                if not beat.passed:
+                    failed.add(beat.beat_id)
+        return reached, failed
+
     @property
     def reach(self) -> float | None:
-        return None if self.void else _mean(d.reach for d in self.demos)
+        if self.void or not self.beat_ids:
+            return None
+        reached, _ = self._union()
+        return len(reached & set(self.beat_ids)) / len(self.beat_ids)
 
     @property
     def state(self) -> float | None:
-        return None if self.void else _mean(d.state for d in self.demos)
+        if self.void or not self.beat_ids:
+            return None
+        reached, failed = self._union()
+        reached &= set(self.beat_ids)
+        if not reached:
+            return 0.0
+        return len(reached - failed) / len(reached)
 
 
 def _mean(values: Iterable[float]) -> float:
@@ -193,15 +223,16 @@ def evaluate_run(
     demo_logs: dict[str, str],
 ) -> RunOutcome:
     """BUILD/LAUNCH gate first; then REACH/STATE over the expected beats."""
+    beat_ids = tuple(b["id"] for b in schema["beats"])
     if not build_ok:
         return RunOutcome(
             build_ok=False, launch_ok=False, void=False,
-            void_reason="", demos=(),
+            void_reason="", demos=(), beat_ids=beat_ids,
         )
     if not demo_logs:
         return RunOutcome(
             build_ok=True, launch_ok=False, void=True,
-            void_reason="no demo logs captured", demos=(),
+            void_reason="no demo logs captured", demos=(), beat_ids=beat_ids,
         )
     demos = tuple(
         evaluate_demo(demo_id, schema, text)
@@ -211,10 +242,12 @@ def evaluate_run(
         return RunOutcome(
             build_ok=True, launch_ok=True, void=True,
             void_reason="no probe output in any demo", demos=demos,
+            beat_ids=beat_ids,
         )
     scored = tuple(d for d in demos if not d.void)
     return RunOutcome(
         build_ok=True, launch_ok=True, void=False, void_reason="", demos=scored,
+        beat_ids=beat_ids,
     )
 
 

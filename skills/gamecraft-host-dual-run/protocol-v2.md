@@ -26,9 +26,11 @@ Machine-checked, no multimodal judge on the primary path:
 
 1. **BUILD** — build/launch check exits 0 (`build_check` for Godot, `1game build` for 1Game).
 2. **LAUNCH** — replay starts and produces demo logs without a fatal error.
-3. **REACH** — fraction of pre-registered beats observed in the probe stream.
-4. **STATE** — fraction of pre-registered beats whose flag assertions pass. **Primary estimand.**
+3. **REACH** — fraction of pre-registered beats observed anywhere in the run's probe streams.
+4. **STATE** — of the beats the run reached, the fraction that passed their flag assertions everywhere they were reached. **Primary estimand.**
 5. **Stability** — same trace replayed 3x yields the same beat outcomes.
+
+Beats are task requirements, not per-trace requirements. A locked-gate trace is not supposed to reach the ending, so both metrics take the union across the run's demos. Scoring each demo against every beat would cap every arm below 1.0 and move the denominator with the number of traces a generator happened to ship — not comparable across arms. REACH and STATE separate two different failures: an arm that reached few beats but got them right scores low REACH and high STATE.
 
 Secondary, descriptive only: v1 PNG excerpt (narrative), code size, dependency count, first build duration. These never enter the engine conclusion.
 
