@@ -1,0 +1,60 @@
+{
+  "probe_schema_version": 1,
+  "slug": "roguelike-dice-throne",
+  "notes": "Engine-neutral beats for the v2 engine-toolchain comparison. Both arms implement the same stdout contract; Harbor rubric.json is untouched. Dice are random, so no assertion reads a rolled face, a damage number, or which opponent appeared: every check is a count, a named state, or an ordering null that holds for any roll.",
+  "beats": [
+    {
+      "id": "title",
+      "assert": {
+        "encounters_won": { "eq": 0 },
+        "faces_modified": { "eq": 0 },
+        "outcome": { "not_null": false }
+      }
+    },
+    {
+      "id": "route_choice",
+      "assert": {
+        "rerolls_left": { "not_null": false },
+        "outcome": { "not_null": false }
+      }
+    },
+    {
+      "id": "roll_ready",
+      "assert": {
+        "rerolls_left": { "min": 0, "max": 2 },
+        "outcome": { "not_null": false }
+      }
+    },
+    {
+      "id": "reroll_exhausted",
+      "assert": {
+        "rerolls_left": { "eq": 0 }
+      }
+    },
+    {
+      "id": "turn_resolved",
+      "assert": {
+        "rerolls_left": { "not_null": false },
+        "encounters_won": { "min": 0 }
+      }
+    },
+    {
+      "id": "encounter_cleared",
+      "assert": {
+        "encounters_won": { "min": 1 }
+      }
+    },
+    {
+      "id": "equip_applied",
+      "assert": {
+        "faces_modified": { "min": 1 }
+      }
+    },
+    {
+      "id": "run_over",
+      "assert": {
+        "outcome": { "not_null": true }
+      }
+    }
+  ]
+}
