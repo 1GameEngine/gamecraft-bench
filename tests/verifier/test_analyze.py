@@ -111,14 +111,24 @@ def test_report_has_no_ranking_or_single_number() -> None:
     cells = [
         _cell("a", "godot", 1.0),
         _cell("a", "1game_eco", 0.5),
-        _cell("a", "1game_bare", 0.0),
     ]
     out = report(cells)
     assert set(out) == {
-        "cells", "rates", "primary", "ablation", "reach_primary", "reach_ablation"
+        "cells", "rates", "primary", "reach_primary"
     }
     assert "winner" not in out and "score" not in out
+    assert "ablation" not in out
+
+
+def test_report_keeps_ablation_when_bare_cells_exist() -> None:
+    cells = [
+        _cell("a", "godot", 1.0),
+        _cell("a", "1game_eco", 0.5),
+        _cell("a", "1game_bare", 0.0),
+    ]
+    out = report(cells)
     assert out["ablation"]["difference"] == 0.5
+    assert "reach_ablation" in out
 
 
 def test_build_and_launch_are_rates_not_folded_into_state() -> None:

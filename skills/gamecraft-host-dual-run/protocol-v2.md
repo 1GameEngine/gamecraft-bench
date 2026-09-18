@@ -6,7 +6,7 @@ Publishable sentence shape:
 
 > Under a fixed agent configuration and a fixed task spec, switching the runtime toolchain (Godot vs 1Game) changes the rate at which the agent produces a game that builds, launches, reaches the pre-registered beats, and satisfies the pre-registered state assertions.
 
-Never publishable from this design: pure-engine quality. Model pretraining exposure, community corpus size, and skill-doc quality are confounded with the runtime. The ablation arm bounds the doc contribution; it does not remove the corpus confound.
+Never publishable from this design: pure-engine quality. Model pretraining exposure, community corpus size, and skill-doc quality are confounded with the runtime. Subsequent matrices do not spawn an ablation arm; the skill mount stays part of the 1Game ecological default and is not separated from the runtime.
 
 ## Arms (all newly generated)
 
@@ -14,11 +14,12 @@ Never publishable from this design: pure-engine quality. Model pretraining expos
 | --- | --- | --- |
 | `godot` | Godot toolchain appendix | reference |
 | `1game_eco` | 1Game appendix + `@1game/skill` | ecological default |
-| `1game_bare` | 1Game appendix, skill **not** mounted | ablation |
 
-USER bytes identical across arms (hash before spawn, see `packing.md`). The two 1Game appendices must differ only by the skill mount. Do not give Godot a compensating skill; that would be a different design.
+Do not spawn `1game_bare`. That arm existed only on the frozen 2026-09 72-cell run (`prereg-2026-09-matrix.md`) to bound the skill-doc contribution; later experiments are two-arm. The scorer may still read a `1game_bare` cell already on disk.
 
-Primary contrast: `godot` vs `1game_eco`. Ablation: `1game_eco` vs `1game_bare`.
+USER bytes identical across arms (hash before spawn, see `packing.md`). Do not give Godot a compensating skill; that would be a different design.
+
+Primary contrast: `godot` vs `1game_eco`.
 
 ## Metrics
 
@@ -71,7 +72,7 @@ Pre-register before looking at any v2 data (`prereg-template.md`): primary estim
 - **P1** one slug end-to-end, pipeline validation only, results not published
 - **P2** write appendices + probe schemas for the remaining slugs; review briefs for engine bias
 - **P3** run the pre-registered matrix without interim analysis
-- **P4** analysis, ablation, and an explicit unidentified-confounds section
+- **P4** analysis and an explicit unidentified-confounds section
 
 ## Unchanged
 

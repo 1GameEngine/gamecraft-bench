@@ -65,7 +65,7 @@ def test_assemble_produces_promotable_payload(tmp_path: Path) -> None:
     run = _run_dir(tmp_path)
     schema_path = tmp_path / "schema.json"
     schema_path.write_text(json.dumps(_SCHEMA))
-    for arm in ("godot", "1game_eco", "1game_bare"):
+    for arm in ("godot", "1game_eco"):
         _write_record(
             run,
             arm,
@@ -80,8 +80,14 @@ def test_assemble_produces_promotable_payload(tmp_path: Path) -> None:
     payload = assemble(
         run_dir=run, slug="visualnovel-keepsake", prereg_frozen_at="deadbeef"
     )
-    assert {c["arm"] for c in payload["cells"]} == {"godot", "1game_eco", "1game_bare"}
+    assert {c["arm"] for c in payload["cells"]} == {"godot", "1game_eco"}
     assert validate_record(payload)
+
+
+def test_spawn_matrix_excludes_bare() -> None:
+    from gamecraft_bench.verifier.v2_runner import SPAWN_ARMS
+
+    assert SPAWN_ARMS == ("godot", "1game_eco")
 
 
 def test_assemble_strips_numbers_from_void_cells(tmp_path: Path) -> None:
