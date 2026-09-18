@@ -1,0 +1,67 @@
+{
+  "probe_schema_version": 1,
+  "slug": "shooter-wave-commander",
+  "notes": "Engine-neutral beats for the v2 engine-toolchain comparison. Every beat is reachable inside one 20s/600-frame cold-title demo: the first wave carries combat, the first kill and the screen clear; one further trace carries the clear-shop-buy-advance chain; one carries the summary. Both arms implement the same stdout contract; Harbor rubric.json is untouched.",
+  "beats": [
+    {
+      "id": "title",
+      "assert": {
+        "phase": { "eq": "title" },
+        "wave": { "eq": 0 },
+        "kills": { "eq": 0 },
+        "upgrades": { "eq": 0 }
+      }
+    },
+    {
+      "id": "wave_start",
+      "assert": {
+        "phase": { "eq": "combat" },
+        "wave": { "min": 1 }
+      }
+    },
+    {
+      "id": "first_kill",
+      "assert": {
+        "phase": { "eq": "combat" },
+        "kills": { "min": 1 }
+      }
+    },
+    {
+      "id": "special_used",
+      "assert": {
+        "phase": { "eq": "combat" },
+        "kills": { "min": 1 }
+      }
+    },
+    {
+      "id": "shop_open",
+      "assert": {
+        "phase": { "in": ["shop", "upgrade", "intermission"] },
+        "wave": { "min": 1 },
+        "kills": { "min": 1 }
+      }
+    },
+    {
+      "id": "upgrade_bought",
+      "assert": {
+        "upgrades": { "min": 1 },
+        "wave": { "min": 1 }
+      }
+    },
+    {
+      "id": "wave_advanced",
+      "assert": {
+        "phase": { "eq": "combat" },
+        "wave": { "min": 2 },
+        "kills": { "min": 1 }
+      }
+    },
+    {
+      "id": "results",
+      "assert": {
+        "phase": { "eq": "results" },
+        "wave": { "min": 1 }
+      }
+    }
+  ]
+}
