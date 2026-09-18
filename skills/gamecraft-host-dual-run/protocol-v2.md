@@ -24,8 +24,8 @@ Primary contrast: `godot` vs `1game_eco`. Ablation: `1game_eco` vs `1game_bare`.
 
 Machine-checked, no multimodal judge on the primary path:
 
-1. **BUILD** — build/launch check exits 0 (`build_check` for Godot, `1game build` for 1Game).
-2. **LAUNCH** — replay starts and produces demo logs without a fatal error.
+1. **BUILD** — the code compiles (`1game build` for 1Game; for Godot the headless check is one invocation and cannot separate the two).
+2. **LAUNCH** — the compiled game assembles and ticks, and replay produces demo logs without a fatal error. Code that typechecks but dies building its scene tree is a launch failure, not a build failure.
 3. **REACH** — fraction of pre-registered beats observed anywhere in the run's probe streams.
 4. **STATE** — of the beats the run reached, the fraction that passed their flag assertions everywhere they were reached. **Primary estimand.**
 5. **Stability** — same trace replayed 3x yields the same beat outcomes.
@@ -58,6 +58,8 @@ Each arm authors its own traces and click coordinates (generator-authored; the p
 - Repeats: ≥5 independent gens per (task × arm).
 - Agents: ≥2 models, identical wrapper settings (effort, timeout, tool surface).
 - Order: gens of later repeats must not see earlier scores; nothing from `host_excerpt_ledger/` is attached to generators.
+
+Generators are barred from `/workspace/gamecraft_bench/`, `/workspace/host_probes/`, and `/workspace/tasks/`. A generator that reads `host_probes/<slug>.json` has read the exact assertion thresholds it is scored on, which turns STATE into a measure of how well it can target a known oracle. The envelopes carry this as a hard line; a cell whose generator reached the scorer is contaminated and does not enter the matrix.
 
 ## Analysis
 

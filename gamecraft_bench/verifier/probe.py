@@ -216,17 +216,43 @@ def evaluate_demo(demo_id: str, schema: dict[str, Any], log_text: str) -> DemoOu
     return DemoOutcome(demo_id=demo_id, void=False, void_reason="", beats=tuple(outcomes))
 
 
+def split_build_launch(build_log: str) -> tuple[bool, bool]:
+    """Read a failed build check as compile-failed or launch-failed.
+
+    The 1Game check is compile (``1game build``) then assemble and tick the
+    archive; it stops at the first failing step, so the last logged command
+    names the stage that failed. Code that compiles but dies assembling the
+    scene tree is a launch failure, not a build failure, and the difference is
+    exactly what an engine comparison is asking about. The Godot check is a
+    single headless invocation, so it can only report both at once.
+    """
+    commands = [
+        line[2:].strip()
+        for line in build_log.splitlines()
+        if line.startswith("$ ")
+    ]
+    if len(commands) <= 1:
+        return False, False
+    first = commands[0]
+    compiled = first.endswith(" build") or " build " in first
+    return (True, False) if compiled else (False, False)
+
+
 def evaluate_run(
     *,
     schema: dict[str, Any],
     build_ok: bool,
     demo_logs: dict[str, str],
+    launch_ok_when_build_failed: bool = False,
+    build_ok_when_build_failed: bool = False,
 ) -> RunOutcome:
     """BUILD/LAUNCH gate first; then REACH/STATE over the expected beats."""
     beat_ids = tuple(b["id"] for b in schema["beats"])
     if not build_ok:
         return RunOutcome(
-            build_ok=False, launch_ok=False, void=False,
+            build_ok=build_ok_when_build_failed,
+            launch_ok=launch_ok_when_build_failed,
+            void=False,
             void_reason="", demos=(), beat_ids=beat_ids,
         )
     if not demo_logs:
@@ -262,10 +288,16 @@ def evaluate_output_dir(run_output_dir: Path, schema_path: Path) -> dict[str, An
         breakdown = json.loads(breakdown_path.read_text())
         build_ok = bool(breakdown.get("build_ok", True))
         still_source = breakdown.get("still_source") or ""
+    compiled, launched = False, False
+    build_log = run_output_dir / "build.log"
+    if not build_ok and build_log.is_file():
+        compiled, launched = split_build_launch(build_log.read_text(errors="replace"))
     outcome = evaluate_run(
         schema=schema,
         build_ok=build_ok,
         demo_logs=read_demo_logs(run_output_dir),
+        build_ok_when_build_failed=compiled,
+        launch_ok_when_build_failed=launched,
     )
     cell: dict[str, Any] = {
         "build_ok": outcome.build_ok,

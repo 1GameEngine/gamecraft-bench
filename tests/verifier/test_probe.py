@@ -17,6 +17,7 @@ from gamecraft_bench.verifier.probe import (
     evaluate_run,
     load_probe_schema,
     parse_probe_lines,
+    split_build_launch,
     read_demo_logs,
 )
 
@@ -245,3 +246,44 @@ def test_unreached_beats_do_not_dilute_state() -> None:
     )
     assert outcome.reach == 1 / 3
     assert outcome.state == 1.0
+
+
+_BUILD_LOG_LAUNCH_FAIL = """# engine: 1game
+$ /usr/local/bin/1game build
+[1game] build complete (single-file): out/index.html
+
+$ /usr/local/bin/1gameplay create --entry src/game.tsx --out /tmp/x.1gamerecord
+{"schema":"1gameplay.error","ok":false,"code":"CLI_BAD_ARGS"}
+"""
+
+_BUILD_LOG_COMPILE_FAIL = """# engine: 1game
+$ /usr/local/bin/1game build
+[1game] Could not resolve "./missing.ts"
+"""
+
+
+def test_compile_ok_launch_failed_is_not_a_build_failure() -> None:
+    assert split_build_launch(_BUILD_LOG_LAUNCH_FAIL) == (True, False)
+
+
+def test_compile_failure_reports_both_false() -> None:
+    assert split_build_launch(_BUILD_LOG_COMPILE_FAIL) == (False, False)
+
+
+def test_godot_single_step_log_cannot_split() -> None:
+    log = "# engine: godot\n$ /usr/local/bin/godot --headless --quit\nerror\n"
+    assert split_build_launch(log) == (False, False)
+
+
+def test_launch_failure_cell_is_not_void_and_scores_zero() -> None:
+    outcome = evaluate_run(
+        schema=_MULTIPATH,
+        build_ok=False,
+        demo_logs={},
+        build_ok_when_build_failed=True,
+        launch_ok_when_build_failed=False,
+    )
+    assert outcome.build_ok is True
+    assert outcome.launch_ok is False
+    assert outcome.void is False
+    assert outcome.reach == 0.0
