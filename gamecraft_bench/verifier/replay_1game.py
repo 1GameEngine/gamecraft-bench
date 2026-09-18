@@ -26,6 +26,7 @@ from pathlib import Path
 
 from .. import config as cfg
 from .replay import ReplayError, ReplayResult
+from .trace_format import scheduled_events
 
 # Judge-facing cadence. Not per logic frame — sparse seq screenshots.
 SCREENSHOT_CADENCE_SECONDS = 0.5
@@ -82,12 +83,7 @@ def replay_trace(
         raise ReplayError("required tool not on PATH: ffmpeg")
 
     trace = json.loads(trace_path.read_text())
-    events = list(trace.get("events", []))
-    duration_frames = int(trace.get("duration_frames", 0))
-    replay_frames = max(
-        duration_frames,
-        *(int(ev["frame"]) for ev in events),
-    ) if events else duration_frames
+    events, replay_frames = scheduled_events(trace)
     if replay_frames < 0:
         raise ReplayError(f"negative trace duration/frame in {trace_path}")
     trace_seconds = replay_frames / fps

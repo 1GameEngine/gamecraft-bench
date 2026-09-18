@@ -34,6 +34,7 @@ import time
 from pathlib import Path
 
 from .. import config as cfg
+from .trace_format import scheduled_events
 
 _DEFAULT_GODOT_WINDOW_TIMEOUT_SECONDS = 45.0
 
@@ -121,13 +122,8 @@ def replay_trace(
             raise ReplayError(f"required tool not on PATH: {tool}")
 
     trace = json.loads(trace_path.read_text())
-    events = list(trace.get("events", []))
-    duration_frames = int(trace.get("duration_frames", 0))
+    events, replay_frames = scheduled_events(trace)
     scenario = trace.get("scenario")
-    replay_frames = max(
-        duration_frames,
-        *(int(ev["frame"]) for ev in events),
-    ) if events else duration_frames
     if replay_frames < 0:
         raise ReplayError(f"negative trace duration/frame in {trace_path}")
     trace_seconds = replay_frames / fps
