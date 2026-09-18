@@ -84,7 +84,8 @@ def _validate_v2(payload: dict[str, Any]) -> dict[str, Any]:
     cells = payload.get("cells")
     if not isinstance(cells, list) or not cells:
         raise HostPathError("cells must be a non-empty list")
-    seen: set[tuple[str, int, str]] = set()
+    record_slug = payload.get("slug")
+    seen: set[tuple[str, str, int, str]] = set()
     for cell in cells:
         if not isinstance(cell, dict):
             raise HostPathError("each cell must be an object")
@@ -97,7 +98,10 @@ def _validate_v2(payload: dict[str, Any]) -> dict[str, Any]:
             raise HostPathError("repeat must be a positive integer")
         if not isinstance(model, str) or not model:
             raise HostPathError("model required per cell")
-        key = (arm, repeat, model)
+        cell_slug = cell.get("slug") or record_slug
+        if not isinstance(cell_slug, str) or not cell_slug:
+            raise HostPathError("cell needs a slug, or the record needs one")
+        key = (cell_slug, arm, repeat, model)
         if key in seen:
             raise HostPathError(f"duplicate cell {key}")
         seen.add(key)

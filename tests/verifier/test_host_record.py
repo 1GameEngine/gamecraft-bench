@@ -175,3 +175,25 @@ def test_v2_rejects_duplicate_cells() -> None:
     payload["cells"] = payload["cells"] * 2
     with pytest.raises(HostPathError, match="duplicate cell"):
         validate_record(payload)
+
+
+def test_same_cell_coordinates_in_different_slugs_are_not_duplicates() -> None:
+    """A multi-slug matrix record has one (arm, repeat, model) per slug."""
+    payload = _v2_payload()
+    base = payload["cells"][0]
+    payload["cells"] = [
+        {**base, "slug": "visualnovel-keepsake"},
+        {**base, "slug": "platformer-echo-climb"},
+    ]
+    assert validate_record(payload)
+
+
+def test_duplicate_within_one_slug_still_rejected() -> None:
+    payload = _v2_payload()
+    base = payload["cells"][0]
+    payload["cells"] = [
+        {**base, "slug": "visualnovel-keepsake"},
+        {**base, "slug": "visualnovel-keepsake"},
+    ]
+    with pytest.raises(HostPathError, match="duplicate cell"):
+        validate_record(payload)
