@@ -139,3 +139,10 @@ deliberate, pre-registered deviation, not a result of stopping early.
 - Trace authorship is per arm: each generator writes its own traces and click
   coordinates. An arm that writes bad traces scores low for a reason that is
   part of the codegen task but is not the runtime.
+
+## Subsequent matrices
+
+This freeze describes the 72-cell run that included `1game_bare`. Later
+experiments follow `protocol-v2.md` as amended: spawn only `godot` and
+`1game_eco`. Do not drop, rewrite, or re-score the cells already in
+`host_excerpt_ledger/h-20260918t061615z-36781d69.json`.

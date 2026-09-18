@@ -16,11 +16,14 @@ from typing import Any
 from .host_paths import HostPathError, validate_experiment_id
 from .probe import evaluate_output_dir
 
+# Spawn matrix is godot + 1game_eco. 1game_bare remains scoreable so the
+# frozen 2026-09 ledger can still be replayed; do not generate new bare cells.
 ARMS = {
     "godot": "godot",
     "1game_eco": "1game",
     "1game_bare": "1game",
 }
+SPAWN_ARMS = ("godot", "1game_eco")
 
 
 def cell_path(
@@ -135,7 +138,11 @@ def assemble(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m gamecraft_bench.verifier.v2_runner",
-        description="Record and machine-score one engine-toolchain cell.",
+        description=(
+            "Record and machine-score one engine-toolchain cell. "
+            f"Spawn matrix: {', '.join(SPAWN_ARMS)}; "
+            "1game_bare is score-only for the frozen 2026-09 ledger."
+        ),
     )
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--arm", choices=sorted(ARMS))

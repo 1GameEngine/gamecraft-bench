@@ -8,7 +8,7 @@
 
 Primary contrast: `godot` vs `1game_eco` on **STATE** (pre-registered beat assertion pass rate).
 Directional or two-sided:
-Ablation contrast: `1game_eco` vs `1game_bare` (bounds the skill-doc contribution).
+Do not register `1game_bare`. Skill-doc quality stays confounded with the 1Game ecological default.
 
 ## Fixed before data
 
@@ -32,7 +32,7 @@ Ablation contrast: `1game_eco` vs `1game_bare` (bounds the skill-doc contributio
 - Model pretraining exposure and community corpus size differ per runtime.
 - Task suite originates from a Godot-oriented benchmark; brief bias review done at P2 by:
 - The probe requirement may be easier to satisfy on one runtime.
-- System envelopes differ by construction; only the skill mount is ablated.
+- System envelopes differ by construction; `@1game/skill` is part of `1game_eco` and is not ablated.
 
 ## Sign-off
 

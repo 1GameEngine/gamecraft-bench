@@ -121,20 +121,28 @@ def paired_contrast(
 
 
 def report(cells: Sequence[dict[str, Any]]) -> dict[str, Any]:
-    """The whole pre-registered output. No ranking, no single number."""
+    """The whole pre-registered output. No ranking, no single number.
+
+    Ablation keys appear only when the record still has ``1game_bare`` cells
+    (the frozen 2026-09 matrix). Subsequent two-arm runs omit them.
+    """
     arms = sorted({c.get("arm") for c in cells if c.get("arm")})
-    return {
+    out: dict[str, Any] = {
         "cells": len(cells),
         "rates": [rates(cells, arm) for arm in arms],
         "primary": paired_contrast(cells, arm_a="godot", arm_b="1game_eco"),
-        "ablation": paired_contrast(cells, arm_a="1game_eco", arm_b="1game_bare"),
         "reach_primary": paired_contrast(
             cells, arm_a="godot", arm_b="1game_eco", metric="reach"
         ),
-        "reach_ablation": paired_contrast(
-            cells, arm_a="1game_eco", arm_b="1game_bare", metric="reach"
-        ),
     }
+    if any(c.get("arm") == "1game_bare" for c in cells):
+        out["ablation"] = paired_contrast(
+            cells, arm_a="1game_eco", arm_b="1game_bare"
+        )
+        out["reach_ablation"] = paired_contrast(
+            cells, arm_a="1game_eco", arm_b="1game_bare", metric="reach"
+        )
+    return out
 
 
 def main(argv: list[str] | None = None) -> int:
