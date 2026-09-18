@@ -446,6 +446,12 @@ def _last_ticked_ms(stdout: str) -> int:
     return int(pointer.get("lastTickedTimeMs") or 0)
 
 
+CONSOLE_CAPTURE: list[str] = [
+    "--capture-console", "log", "--console-max-per-step", "64",
+]
+"""Game self-report lines (the probe contract) are worker console output."""
+
+
 def _apply_events(
     play: str,
     archive: Path,
@@ -482,6 +488,7 @@ def _apply_events(
                     "--surface", "display",
                     "--flush",
                     "--ms", "16", "--repeat", "1",
+                    *CONSOLE_CAPTURE,
                     "--event", json.dumps(payload, separators=(",", ":")),
                 ],
                 cwd=cwd, env=env, timeout=120, log_path=log_path,
@@ -497,6 +504,7 @@ def _apply_events(
                         "--surface", "display",
                         "--flush",
                         "--ms", "16", "--repeat", "1",
+                        *CONSOLE_CAPTURE,
                     ],
                     cwd=cwd, env=env, timeout=120, log_path=log_path,
                 )
@@ -534,6 +542,7 @@ def _tick(
                 "--surface", "display",
                 "--flush",
                 "--ms", str(chunk), "--repeat", "1",
+                *CONSOLE_CAPTURE,
             ],
             cwd=cwd, env=env, timeout=120, log_path=log_path,
         )

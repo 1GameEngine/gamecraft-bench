@@ -180,3 +180,30 @@ def test_harbor_auto_godot_without_stills_still_samples(tmp_path: Path) -> None:
     sample.assert_called_once()
     assert source == "mp4_sample"
     assert frames == [tmp_path / "frame.png"]
+
+
+def test_every_1game_step_captures_console() -> None:
+    """The probe contract rides on worker console output, which defaults to warn."""
+    calls: list[list[str]] = []
+
+    def fake_run(argv, **kwargs):
+        calls.append(list(argv))
+        return json.dumps({"meta": {"statePointer": {"lastTickedTimeMs": 16 * len(calls)}}})
+
+    with patch.object(r1, "_run_cli", side_effect=fake_run):
+        r1._apply_events(
+            "1gameplay",
+            Path("demo.1gamerecord"),
+            [{"frame": 3, "type": "mouse_click", "x": 10, "y": 20}],
+            fps=30,
+            duration_frames=12,
+            cwd=Path("."),
+            env={},
+            log_path=None,
+        )
+
+    steps = [c for c in calls if "step" in c]
+    assert steps
+    for call in steps:
+        assert "--capture-console" in call
+        assert call[call.index("--capture-console") + 1] == "log"
