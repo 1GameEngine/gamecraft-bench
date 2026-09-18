@@ -19,4 +19,4 @@ The self-report lines from the user brief must reach the process stdout of the r
 
 Do not read anything under `/workspace/gamecraft_bench/`, `/workspace/host_probes/`, or `/workspace/tasks/` — the scorer's source, the beat assertions, and the Harbor rubric are not part of your brief. The self-report contract in the user brief is the whole contract.
 
-Do not wrap Xvfb or set `DISPLAY=`. Do not run the verifier. Leave PLAY/BUILD capture to the parent.
+Do not wrap Xvfb or set `DISPLAY=`. Do not run the verifier. Leave PLAY/BUILD capture to the parent. You may run `1game build` and replay your own project with `1gameplay` to self-check.
