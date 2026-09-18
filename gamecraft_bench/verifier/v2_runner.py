@@ -123,14 +123,36 @@ def main(argv: list[str] | None = None) -> int:
         description="Record and machine-score one engine-toolchain cell.",
     )
     parser.add_argument("--run-dir", type=Path, required=True)
-    parser.add_argument("--arm", choices=sorted(ARMS), required=True)
+    parser.add_argument("--arm", choices=sorted(ARMS))
     parser.add_argument("--repeat", type=int, default=1)
-    parser.add_argument("--model", required=True)
-    parser.add_argument("--rubric", type=Path, required=True)
-    parser.add_argument("--probe", type=Path, required=True)
+    parser.add_argument("--model")
+    parser.add_argument("--rubric", type=Path)
+    parser.add_argument("--probe", type=Path)
     parser.add_argument("--skip-record", action="store_true",
                         help="Score an already recorded cell.")
+    parser.add_argument("--assemble", action="store_true",
+                        help="Print the ledger payload for every scored cell.")
+    parser.add_argument("--slug", default="visualnovel-keepsake")
+    parser.add_argument("--prereg-frozen-at",
+                        help="sha256 of the frozen pre-registration document.")
     args = parser.parse_args(argv)
+
+    if args.assemble:
+        if not args.prereg_frozen_at:
+            parser.error("--assemble needs --prereg-frozen-at")
+        print(json.dumps(
+            assemble(
+                run_dir=args.run_dir,
+                slug=args.slug,
+                prereg_frozen_at=args.prereg_frozen_at,
+            ),
+            indent=2,
+        ))
+        return 0
+
+    for required in ("arm", "model", "rubric", "probe"):
+        if getattr(args, required) is None:
+            parser.error(f"--{required.replace('_', '-')} is required")
 
     if not args.skip_record:
         record_cell(run_dir=args.run_dir, arm=args.arm, rubric=args.rubric)
