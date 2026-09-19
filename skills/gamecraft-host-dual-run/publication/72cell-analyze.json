@@ -1,0 +1,125 @@
+{
+  "cells": 72,
+  "rates": [
+    {
+      "arm": "1game_bare",
+      "cells": 24,
+      "build_ok_rate": 1.0,
+      "launch_ok_rate": 0.9583333333333334,
+      "void_rate": 0.041666666666666664,
+      "contaminated_rate": 0.0
+    },
+    {
+      "arm": "1game_eco",
+      "cells": 24,
+      "build_ok_rate": 1.0,
+      "launch_ok_rate": 1.0,
+      "void_rate": 0.041666666666666664,
+      "contaminated_rate": 0.0
+    },
+    {
+      "arm": "godot",
+      "cells": 24,
+      "build_ok_rate": 1.0,
+      "launch_ok_rate": 1.0,
+      "void_rate": 0.0,
+      "contaminated_rate": 0.0
+    }
+  ],
+  "primary": {
+    "metric": "state",
+    "arm_a": "godot",
+    "arm_b": "1game_eco",
+    "slugs": 8,
+    "per_slug": {
+      "platformer-echo-climb": 0.0,
+      "puzzle-sokoban-dungeon": 0.0,
+      "roguelike-dice-throne": 0.0,
+      "shooter-wave-commander": 0.0,
+      "simulation-kitchen-rush": 0.0,
+      "strategy-towerdefense": 0.119,
+      "tycoon-potion-shop": 0.0,
+      "visualnovel-keepsake": -0.0556
+    },
+    "dropped_slugs": [],
+    "difference": 0.0079,
+    "interval": [
+      -0.0208,
+      0.0446
+    ],
+    "resamples": 10000,
+    "seed": 20260918
+  },
+  "reach_primary": {
+    "metric": "reach",
+    "arm_a": "godot",
+    "arm_b": "1game_eco",
+    "slugs": 8,
+    "per_slug": {
+      "platformer-echo-climb": 0.0625,
+      "puzzle-sokoban-dungeon": 0.5833,
+      "roguelike-dice-throne": 0.0417,
+      "shooter-wave-commander": -0.0833,
+      "simulation-kitchen-rush": 0.381,
+      "strategy-towerdefense": 0.0952,
+      "tycoon-potion-shop": 0.0,
+      "visualnovel-keepsake": 0.0
+    },
+    "dropped_slugs": [],
+    "difference": 0.135,
+    "interval": [
+      0.0052,
+      0.2939
+    ],
+    "resamples": 10000,
+    "seed": 20260918
+  },
+  "ablation": {
+    "metric": "state",
+    "arm_a": "1game_eco",
+    "arm_b": "1game_bare",
+    "slugs": 8,
+    "per_slug": {
+      "platformer-echo-climb": 0.0,
+      "puzzle-sokoban-dungeon": -0.0417,
+      "roguelike-dice-throne": 0.0417,
+      "shooter-wave-commander": 0.0,
+      "simulation-kitchen-rush": 0.0,
+      "strategy-towerdefense": -0.0833,
+      "tycoon-potion-shop": 0.0,
+      "visualnovel-keepsake": 0.0
+    },
+    "dropped_slugs": [],
+    "difference": -0.0104,
+    "interval": [
+      -0.0365,
+      0.0104
+    ],
+    "resamples": 10000,
+    "seed": 20260918
+  },
+  "reach_ablation": {
+    "metric": "reach",
+    "arm_a": "1game_eco",
+    "arm_b": "1game_bare",
+    "slugs": 8,
+    "per_slug": {
+      "platformer-echo-climb": 0.0,
+      "puzzle-sokoban-dungeon": 0.2917,
+      "roguelike-dice-throne": 0.0,
+      "shooter-wave-commander": -0.125,
+      "simulation-kitchen-rush": -0.0476,
+      "strategy-towerdefense": 0.2381,
+      "tycoon-potion-shop": 0.25,
+      "visualnovel-keepsake": 0.0
+    },
+    "dropped_slugs": [],
+    "difference": 0.0759,
+    "interval": [
+      -0.0216,
+      0.183
+    ],
+    "resamples": 10000,
+    "seed": 20260918
+  }
+}

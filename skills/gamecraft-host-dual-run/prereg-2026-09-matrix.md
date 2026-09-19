@@ -146,3 +146,9 @@ This freeze describes the 72-cell run that included `1game_bare`. Later
 experiments follow `protocol-v2.md` as amended: spawn only `godot` and
 `1game_eco`. Do not drop, rewrite, or re-score the cells already in
 `host_excerpt_ledger/h-20260918t061615z-36781d69.json`.
+
+Read-only publication of **this** freeze (STATE remains the pre-registered
+primary; REACH is tabulated beside it, never instead of it) lives in
+`publication/72cell.md`. Regenerating that file from `analyze.report` is
+allowed. Changing cell scores, adding `STATE_cond` as a main column, or
+opening a new matrix from that document is not.

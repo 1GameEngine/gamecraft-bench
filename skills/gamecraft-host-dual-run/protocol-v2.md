@@ -66,6 +66,8 @@ Generators are barred from `/workspace/gamecraft_bench/`, `/workspace/host_probe
 
 Pre-register before looking at any v2 data (`prereg-template.md`): primary estimand STATE, task as random effect, effect size with interval, no single-number leaderboard. Void and Unscored never become 0. Report void rates per arm.
 
+The 8-slug freeze (`prereg-2026-09-matrix.md`, ledger `host_excerpt_ledger/h-20260918t061615z-36781d69.json`) is **already analysed**. Option-0 publication is `publication/72cell.md`, regenerated only by `python -m gamecraft_bench.verifier.publication` from that ledger. Do not rewrite cells, do not fold REACH into a ranking, do not spawn from the publication file. This document's P1–P4 list does not start because someone read the freeze.
+
 ## Phases
 
 - **P0** protocol, probe schema, parser, ledger v2 (no gens)
