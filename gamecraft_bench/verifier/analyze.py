@@ -154,6 +154,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path)
     args = parser.parse_args(argv)
 
+    record_paths = {path.resolve() for path in args.records}
+    if args.out is not None and args.out.resolve() in record_paths:
+        parser.error("--out must not overwrite a ledger record")
+
     result = report(load_cells(args.records))
     text = json.dumps(result, indent=2) + "\n"
     if args.out:

@@ -6,7 +6,7 @@
 
 **Kill list:** No 10+5 Harbor sweep. No extra engines or slugs. No `harbor run --agent`. No nested Xvfb / `DISPLAY=` wrap for 1Game. Generators must not run the verifier or `tools/screenshot.sh`. Children spawn **zero** Tasks. Never write Cursor pixel scores into Harbor `reward.txt`. Never `JOBS_ROOT=$HOME` (the home directory itself). Never nest host-runs under `$HOME/gamecraft-bench-jobs`. Never call an unlock `1+1-only`. Do not replace `@1game/skill`. Do not commit `.cursor/skills/1game*` or `$HOME` run trees. Do not promote the spent local n=1 tree under `gamecraft-bench-jobs-compare/visualnovel-keepsake/`. Do not strip skill off a frozen gen and re-score. Do not reuse consumed phrases `phase-1-run-once-keepsake` or `新录再打` as spawn keys.
 
-**v2 lives beside this file.** `protocol-v2.md` defines the `engine_toolchain_effect` claim class (machine-checked probe metrics, two spawn arms `godot` / `1game_eco`, pre-registered matrix). This v1 document stays the narrative-diagnostic protocol. Never merge v1 excerpt cards with v2 metrics in one table.
+**v2 lives beside this file.** `protocol-v2.md` defines the `engine_toolchain_effect` claim class (machine-checked probe metrics, two spawn arms `godot` / `1game_eco`, pre-registered matrix). The frozen 72-cell publication (`publication/72cell.md`) is option-0 reporting only; reading it is **not** a v1 or v2 spawn gate. This v1 document stays the narrative-diagnostic protocol. Never merge v1 excerpt cards with v2 metrics in one table.
 
 ## Identities and trees
 
